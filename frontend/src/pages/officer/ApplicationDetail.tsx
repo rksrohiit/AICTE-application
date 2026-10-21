@@ -36,8 +36,16 @@ import { FindingCard } from '@/components/shared/FindingCard';
 import { AnomalyCard } from '@/components/shared/AnomalyCard';
 import { VerificationStatusChip } from '@/components/shared/VerificationStatusChip';
 import { AuditTimeline } from '@/components/shared/AuditTimeline';
+import { InfrastructureScrutinyPanel } from '@/components/shared/InfrastructureScrutinyPanel';
 
-type TabKey = 'overview' | 'documents' | 'findings' | 'anomalies' | 'verification' | 'audit';
+type TabKey =
+  | 'overview'
+  | 'documents'
+  | 'infrastructure'
+  | 'findings'
+  | 'anomalies'
+  | 'verification'
+  | 'audit';
 
 export default function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
@@ -197,6 +205,7 @@ export default function ApplicationDetail() {
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'documents', label: 'Documents', count: documents.length },
+    { key: 'infrastructure', label: '🏛️ Infrastructure & Lab Scrutiny' },
     { key: 'findings', label: 'Findings', count: findingsList.length },
     { key: 'anomalies', label: 'Anomalies', count: anomaliesList.length },
     { key: 'verification', label: 'Verification', count: verificationsList.length },
@@ -512,6 +521,14 @@ export default function ApplicationDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB: INFRASTRUCTURE & LAB SCRUTINY */}
+      {activeTab === 'infrastructure' && application && (
+        <InfrastructureScrutinyPanel
+          applicationId={application.id}
+          institutionName={application.institution_name}
+        />
       )}
 
       {/* TAB 3: FINDINGS */}

@@ -20,6 +20,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { ValidationScoreRing } from '@/components/shared/ValidationScoreRing';
 import { DocumentUploadCard } from '@/components/shared/DocumentUploadCard';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
+import { InfrastructureScrutinyPanel } from '@/components/shared/InfrastructureScrutinyPanel';
 import type { DocType, ApplicationAlert, Document } from '@/lib/types';
 
 function AlertBanner({
@@ -233,6 +234,12 @@ export default function ApplicationStatus() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Infrastructure & Physical Lab Scrutiny */}
+      <InfrastructureScrutinyPanel
+        applicationId={application.id}
+        institutionName={application.institution_name}
+      />
 
       {/* Deficiency list */}
       {failFindings.length > 0 && (
