@@ -1,0 +1,57 @@
+# Common Rules
+# Version: 1.0.0
+# Applies to: All application types (EOA, NBA, New Institution, etc.)
+
+rules:
+  - id: CMN001
+    name: Institution Name Must Match Across All Documents
+    category: CONSISTENCY
+    document_type: null
+    check_type: cross_doc_field_match
+    severity: HIGH
+    field: institution_name
+    source_documents: ALL
+    comparator: fuzzy_match
+    threshold: 0.90
+    message: "Institution name is inconsistent across one or more uploaded documents. All documents must bear the same registered institution name as per the incorporation certificate."
+
+  - id: CMN002
+    name: Application Form Signature Present
+    category: COMPLETENESS
+    document_type: APPLICATION_FORM
+    check_type: field_present
+    severity: HIGH
+    field: signature_present
+    expected_value: true
+    message: "The application form must be duly signed by the authorized signatory (Principal / Director / Trustee). An unsigned application form will not be accepted."
+
+  - id: CMN003
+    name: No Document Modification Date Anomaly
+    category: VALIDITY
+    document_type: null
+    check_type: metadata_anomaly_check
+    severity: MEDIUM
+    field: file_modification_date
+    rule: modification_after_issue_date
+    message: "One or more documents appear to have been modified after their stated issue date. This may indicate tampering. Please re-upload authentic copies."
+
+  - id: CMN004
+    name: All Documents Must Have Successful OCR
+    category: COMPLETENESS
+    document_type: null
+    check_type: ocr_status_check
+    severity: MEDIUM
+    field: ocr_status
+    expected_value: "SUCCESS"
+    message: "One or more documents could not be read via OCR (text extraction failed). Please ensure documents are clear, unencrypted PDFs or high-resolution scanned images."
+
+  - id: CMN005
+    name: Application Must Have At Least One Contact Detail
+    category: COMPLETENESS
+    document_type: APPLICATION_FORM
+    check_type: at_least_one_present
+    severity: LOW
+    fields:
+      - contact_phone
+      - contact_email
+    message: "The application must include at least one contact detail (phone number or email address) for the institution's authorized representative."

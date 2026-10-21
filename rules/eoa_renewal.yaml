@@ -1,0 +1,242 @@
+# EOA Renewal Rules
+# Version: 1.0.0
+# Applies to: Extension of Approval (EOA) applications
+
+rules:
+  # ─────────────────────────────────────────────────────────────────
+  # CATEGORY: COMPLETENESS — Document presence checks
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: R001
+    name: Affidavit Document Present
+    category: COMPLETENESS
+    document_type: AFFIDAVIT
+    check_type: document_present
+    severity: HIGH
+    message: "Affidavit document is mandatory for EOA renewal. Please upload a valid affidavit."
+
+  - id: R002
+    name: State NOC Document Present
+    category: COMPLETENESS
+    document_type: STATE_NOC
+    check_type: document_present
+    severity: HIGH
+    message: "State No-Objection Certificate (NOC) is mandatory for EOA renewal. Please upload the document."
+
+  - id: R003
+    name: NAAC Certificate Present
+    category: COMPLETENESS
+    document_type: NAAC_CERT
+    check_type: document_present
+    severity: HIGH
+    message: "NAAC Accreditation Certificate is mandatory. Please upload the latest NAAC certificate."
+
+  - id: R004
+    name: Fire Safety Certificate Present
+    category: COMPLETENESS
+    document_type: FIRE_SAFETY_CERT
+    check_type: document_present
+    severity: HIGH
+    message: "Fire Safety Certificate is mandatory for EOA renewal. Please upload a valid certificate."
+
+  - id: R005
+    name: TER Receipt Present
+    category: COMPLETENESS
+    document_type: TER_RECEIPT
+    check_type: document_present
+    severity: HIGH
+    message: "Tuition Fee Remittance (TER) receipt is mandatory. Please upload the latest TER receipt."
+
+  - id: R006
+    name: Land and Building Document Present
+    category: COMPLETENESS
+    document_type: LAND_BUILDING_DOC
+    check_type: document_present
+    severity: HIGH
+    message: "Land and Building ownership/lease document is mandatory. Please upload the relevant document."
+
+  - id: R007
+    name: Faculty Data Sheet Present
+    category: COMPLETENESS
+    document_type: FACULTY_DATA
+    check_type: document_present
+    severity: HIGH
+    message: "Faculty data sheet is mandatory. Please upload the complete faculty details document."
+
+  - id: R008
+    name: EOA Application Form Present
+    category: COMPLETENESS
+    document_type: EOA_FORM
+    check_type: document_present
+    severity: HIGH
+    message: "The EOA application form itself is mandatory. Please upload the duly filled and signed form."
+
+  # ─────────────────────────────────────────────────────────────────
+  # CATEGORY: VALIDITY — Date validity checks
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: R009
+    name: Affidavit Date Validity
+    category: VALIDITY
+    document_type: AFFIDAVIT
+    check_type: date_not_expired
+    severity: HIGH
+    field: issue_date
+    max_age_days: 180
+    message: "Affidavit must not be older than 6 months from the date of application. Please submit a recently executed affidavit."
+
+  - id: R010
+    name: State NOC Date Validity
+    category: VALIDITY
+    document_type: STATE_NOC
+    check_type: date_not_expired
+    severity: HIGH
+    field: valid_till
+    message: "State NOC has expired. Please obtain a renewed NOC from the State Government before applying."
+
+  - id: R011
+    name: Fire Safety Certificate Validity
+    category: VALIDITY
+    document_type: FIRE_SAFETY_CERT
+    check_type: date_not_expired
+    severity: HIGH
+    field: valid_till
+    message: "Fire Safety Certificate has expired. Please renew the certificate from the local Fire Department."
+
+  - id: R012
+    name: NAAC Accreditation Validity
+    category: VALIDITY
+    document_type: NAAC_CERT
+    check_type: date_not_expired
+    severity: MEDIUM
+    field: valid_till
+    message: "NAAC Accreditation has expired or will expire soon. Please upload the latest valid NAAC certificate or peer team visit report."
+
+  # ─────────────────────────────────────────────────────────────────
+  # CATEGORY: FORMAT — Field format and value checks
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: R013
+    name: NAAC Grade Threshold
+    category: FORMAT
+    document_type: NAAC_CERT
+    check_type: field_value_in_set
+    severity: HIGH
+    field: grade
+    allowed_values: ["A++", "A+", "A", "B++", "B+", "B"]
+    message: "NAAC Grade is below the minimum acceptable threshold (B). Institutions with grade 'C' or 'D' are not eligible for EOA renewal without remediation."
+
+  - id: R014
+    name: Approval Number Format Check
+    category: FORMAT
+    document_type: EOA_FORM
+    check_type: regex_match
+    severity: MEDIUM
+    field: approval_number
+    pattern: "^[A-Z]{4}-[0-9]{4}-[0-9]{5}$"
+    message: "Approval number format is invalid. Expected format: XXXX-YYYY-NNNNN (e.g., WEST-2024-00123)."
+
+  - id: R015
+    name: Faculty Count Minimum
+    category: FORMAT
+    document_type: FACULTY_DATA
+    check_type: numeric_min
+    severity: HIGH
+    field: total_faculty_count
+    min_value: 1
+    message: "Faculty count must be at least 1. Please ensure the faculty data sheet is complete and accurate."
+
+  - id: R016
+    name: Land Area Minimum
+    category: FORMAT
+    document_type: LAND_BUILDING_DOC
+    check_type: numeric_min
+    severity: HIGH
+    field: land_area_sqm
+    min_value: 500
+    message: "Land area must be at least 500 sq. meters as per AICTE norms. Please verify the land document."
+
+  # ─────────────────────────────────────────────────────────────────
+  # CATEGORY: CONSISTENCY — Cross-document consistency checks
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: R017
+    name: Institution Name Match Across Documents
+    category: CONSISTENCY
+    document_type: null
+    check_type: cross_doc_field_match
+    severity: HIGH
+    field: institution_name
+    source_documents:
+      - AFFIDAVIT
+      - STATE_NOC
+      - NAAC_CERT
+      - EOA_FORM
+    comparator: fuzzy_match
+    threshold: 0.90
+    message: "Institution name does not match across documents. Please ensure all documents bear the same registered institution name."
+
+  - id: R018
+    name: Approval Number Consistency
+    category: CONSISTENCY
+    document_type: null
+    check_type: cross_doc_field_match
+    severity: HIGH
+    field: approval_number
+    source_documents:
+      - EOA_FORM
+      - STATE_NOC
+    comparator: exact_match
+    message: "Approval number on the EOA form does not match the approval number on the State NOC. Please verify the documents."
+
+  - id: R019
+    name: Programme Name Consistency
+    category: CONSISTENCY
+    document_type: null
+    check_type: cross_doc_field_match
+    severity: MEDIUM
+    field: programme_name
+    source_documents:
+      - EOA_FORM
+      - AFFIDAVIT
+    comparator: fuzzy_match
+    threshold: 0.85
+    message: "Programme name on the EOA form does not match the programme name mentioned in the affidavit. Please verify."
+
+  # ─────────────────────────────────────────────────────────────────
+  # CATEGORY: COMPLIANCE — Threshold and compliance checks
+  # ─────────────────────────────────────────────────────────────────
+
+  - id: R020
+    name: TER Payment Status Compliance
+    category: COMPLIANCE
+    document_type: TER_RECEIPT
+    check_type: field_value_in_set
+    severity: HIGH
+    field: payment_status
+    allowed_values: ["PAID", "CLEARED"]
+    message: "Tuition Fee Remittance (TER) payment status is not 'PAID'. All pending fee remittances must be cleared before EOA renewal."
+
+  - id: R021
+    name: Faculty Qualification Ratio Compliance
+    category: COMPLIANCE
+    document_type: FACULTY_DATA
+    check_type: ratio_min
+    severity: HIGH
+    numerator_field: phd_faculty_count
+    denominator_field: total_faculty_count
+    min_ratio: 0.20
+    message: "Minimum 20% of faculty must hold a Ph.D. qualification as per AICTE norms. Please update the faculty data sheet."
+
+  - id: R022
+    name: Intake Consistency with Approved Strength
+    category: COMPLIANCE
+    document_type: null
+    check_type: cross_doc_numeric_match
+    severity: MEDIUM
+    field: approved_intake
+    source_documents:
+      - EOA_FORM
+      - STATE_NOC
+    comparator: lte
+    message: "Intake mentioned in the EOA form exceeds the intake approved in the State NOC. Intake cannot exceed the state-approved strength."
