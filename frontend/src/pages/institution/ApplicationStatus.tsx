@@ -21,6 +21,7 @@ import { ValidationScoreRing } from '@/components/shared/ValidationScoreRing';
 import { DocumentUploadCard } from '@/components/shared/DocumentUploadCard';
 import { SeverityBadge } from '@/components/shared/SeverityBadge';
 import { InfrastructureScrutinyPanel } from '@/components/shared/InfrastructureScrutinyPanel';
+import { CampusPlotBoundaryPanel } from '@/components/shared/CampusPlotBoundaryPanel';
 import type { DocType, ApplicationAlert, Document } from '@/lib/types';
 
 function AlertBanner({
@@ -234,6 +235,11 @@ export default function ApplicationStatus() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Campus Plot Boundary Geodesic & Satellite Scrutiny */}
+      <CampusPlotBoundaryPanel
+        applicationId={application.id}
+      />
 
       {/* Infrastructure & Physical Lab Scrutiny */}
       <InfrastructureScrutinyPanel

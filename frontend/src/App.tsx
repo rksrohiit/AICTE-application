@@ -10,6 +10,7 @@ import ApplicationStatus from '@/pages/institution/ApplicationStatus';
 import OfficerLayout from '@/pages/officer/Layout';
 import ApplicationQueue from '@/pages/officer/ApplicationQueue';
 import ApplicationDetail from '@/pages/officer/ApplicationDetail';
+import PublicVerification from '@/pages/public/PublicVerification';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -38,6 +39,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/verify/:id" element={<PublicVerification />} />
 
         {/* Institution routes */}
         <Route

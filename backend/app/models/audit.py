@@ -43,3 +43,5 @@ class AuditLog(Base):
     evidence_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
     result: Mapped[str | None] = mapped_column(String(64), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    entry_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)

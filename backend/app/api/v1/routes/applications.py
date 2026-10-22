@@ -19,6 +19,7 @@ from app.models.user import User, UserRole
 from app.models.validation import ValidationRun
 from app.models.audit import AuditLog
 from app.models.alert import ApplicationAlert
+from app.services.audit_chain import append_chained_audit_log, verify_audit_chain
 from app.schemas.application import ApplicationCreate, ApplicationListResponse, ApplicationResponse
 from app.schemas.validation import ValidationFindingResponse, ValidationReportResponse, ValidationRunResponse
 from app.schemas.audit import AuditLogResponse
@@ -103,14 +104,14 @@ async def create_application(
     await db.flush()
     await db.refresh(app)
 
-    audit = AuditLog(
+    await append_chained_audit_log(
+        db=db,
         actor=current_user.email,
         action="APPLICATION_CREATED",
         application_id=app.id,
         result="SUCCESS",
         notes=f"Application type: {app.application_type.value}",
     )
-    db.add(audit)
 
     return ApplicationResponse.model_validate(app)
 
@@ -212,13 +213,14 @@ async def trigger_validation(
         )
 
     app.status = ApplicationStatus.UNDER_VALIDATION
-    audit = AuditLog(
+    await append_chained_audit_log(
+        db=db,
         actor=current_user.email,
         action="VALIDATION_TRIGGERED",
         application_id=app.id,
         result="QUEUED",
+        notes=f"Automated AI validation engine initiated by {current_user.email}",
     )
-    db.add(audit)
     await db.flush()
 
     task = run_validation.delay(str(app_id))
@@ -369,6 +371,23 @@ async def get_application_audit(
     return [AuditLogResponse.model_validate(log) for log in logs]
 
 
+@router.get(
+    "/{app_id}/audit/verify-chain",
+    summary="Cryptographically verify hash-chain integrity of the application audit trail",
+)
+async def verify_application_audit_chain(
+    app_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Verify that every decision and audit log record is linked via valid SHA-256 hashes
+
+    from genesis to the latest event, with zero gaps, tampering, or retrospectively edited logs.
+    """
+    await _get_application_or_404(app_id, db, current_user)
+    return await verify_audit_chain(db, app_id)
+
+
 @router.post(
     "/{app_id}/actions",
     status_code=status.HTTP_200_OK,
@@ -427,14 +446,14 @@ async def officer_action(
     app.status = new_status
     app.updated_at = datetime.now(timezone.utc)
 
-    audit = AuditLog(
+    await append_chained_audit_log(
+        db=db,
         actor=current_user.email,
         action=f"OFFICER_ACTION_{action}",
         application_id=app.id,
         result=new_status.value,
-        notes=notes or None,
+        notes=notes or f"Application status transitioned to {new_status.value}",
     )
-    db.add(audit)
     await db.flush()
 
     return {

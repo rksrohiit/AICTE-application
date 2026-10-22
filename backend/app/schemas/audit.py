@@ -24,5 +24,7 @@ class AuditLogResponse(BaseModel):
     evidence_ref: str | None
     result: str | None
     notes: str | None
+    prev_hash: str | None = None
+    entry_hash: str | None = None
 
     model_config = {"from_attributes": True}

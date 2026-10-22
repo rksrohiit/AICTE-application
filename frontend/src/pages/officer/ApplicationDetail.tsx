@@ -11,6 +11,8 @@ import {
   Play,
   ListFilter,
   RefreshCw,
+  QrCode,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,6 +26,7 @@ import type {
   Document,
   OfficerAction,
   FindingSeverity,
+  PublicVerificationData,
 } from '@/lib/types';
 
 import { Button } from '@/components/ui/Button';
@@ -37,6 +40,7 @@ import { AnomalyCard } from '@/components/shared/AnomalyCard';
 import { VerificationStatusChip } from '@/components/shared/VerificationStatusChip';
 import { AuditTimeline } from '@/components/shared/AuditTimeline';
 import { InfrastructureScrutinyPanel } from '@/components/shared/InfrastructureScrutinyPanel';
+import { CampusPlotBoundaryPanel } from '@/components/shared/CampusPlotBoundaryPanel';
 
 type TabKey =
   | 'overview'
@@ -68,6 +72,25 @@ export default function ApplicationDetail() {
 
   // Finding filter
   const [severityFilter, setSeverityFilter] = useState<'ALL' | FindingSeverity>('ALL');
+
+  // Public QR modal state
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrData, setQrData] = useState<PublicVerificationData | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+
+  const handleOpenQrModal = async () => {
+    if (!id) return;
+    setQrModalOpen(true);
+    setQrLoading(true);
+    try {
+      const data = await api.publicVerify.get(id);
+      setQrData(data);
+    } catch {
+      toast.error('Failed to load public verification record');
+    } finally {
+      setQrLoading(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -233,6 +256,15 @@ export default function ApplicationDetail() {
           >
             <RefreshCw className="h-4 w-4 mr-1.5" />
             Refresh
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleOpenQrModal}
+            title="Public Verification QR Code"
+          >
+            <QrCode className="h-4 w-4 mr-1.5 text-indigo-600" />
+            Public QR
           </Button>
           <Button
             variant="secondary"
@@ -525,10 +557,18 @@ export default function ApplicationDetail() {
 
       {/* TAB: INFRASTRUCTURE & LAB SCRUTINY */}
       {activeTab === 'infrastructure' && application && (
-        <InfrastructureScrutinyPanel
-          applicationId={application.id}
-          institutionName={application.institution_name}
-        />
+        <div className="space-y-8">
+          {/* 1. Campus Plot Boundary Geodesic & Satellite Scrutiny */}
+          <CampusPlotBoundaryPanel
+            applicationId={application.id}
+          />
+
+          {/* 2. Photo EXIF Geotag, ELA Tampering & Lab Equipment Detection */}
+          <InfrastructureScrutinyPanel
+            applicationId={application.id}
+            institutionName={application.institution_name}
+          />
+        </div>
       )}
 
       {/* TAB 3: FINDINGS */}
@@ -654,7 +694,11 @@ export default function ApplicationDetail() {
       {/* TAB 6: AUDIT TRAIL */}
       {activeTab === 'audit' && (
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <AuditTimeline logs={auditLogs} />
+          <AuditTimeline
+            logs={auditLogs}
+            applicationId={application.id}
+            onShowQr={handleOpenQrModal}
+          />
         </div>
       )}
 
@@ -744,6 +788,64 @@ export default function ApplicationDetail() {
               Confirm & Apply
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Public Verification QR Code Modal */}
+      <Modal
+        isOpen={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        title="Public Verification QR Code & Cryptographic Certificate"
+      >
+        <div className="space-y-4 text-center">
+          {qrLoading ? (
+            <div className="py-8">
+              <Spinner size="lg" className="mx-auto" />
+              <p className="text-xs text-gray-500 mt-2">Loading verifiable certificate & QR...</p>
+            </div>
+          ) : qrData ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-white rounded-2xl border border-gray-200 shadow-sm inline-block">
+                <img
+                  src={qrData.qr_code_data_uri}
+                  alt="Public Verification QR Code"
+                  className="w-44 h-44 mx-auto object-contain"
+                />
+              </div>
+
+              <div className="space-y-1 text-xs">
+                <h4 className="font-bold text-gray-900 text-sm">{qrData.institution_name}</h4>
+                <p className="text-gray-500 font-mono text-[11px]">{qrData.application_id}</p>
+                <div className="pt-1">
+                  <Badge variant={qrData.chain_integrity.is_valid ? 'success' : 'danger'}>
+                    {qrData.chain_integrity.is_valid
+                      ? '✓ SHA-256 Hash Chain: Intact'
+                      : '✗ Hash Chain Compromised'}
+                  </Badge>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                Scan with any smartphone camera to inspect the immutable public decision ledger and verify EoA authenticity.
+              </p>
+
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => window.open(`/verify/${qrData.application_id}`, '_blank')}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  Open Public Portal
+                </Button>
+                <Button variant="primary" size="sm" onClick={() => setQrModalOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-red-500">Failed to load QR code</p>
+          )}
         </div>
       </Modal>
     </div>

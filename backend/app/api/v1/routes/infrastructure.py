@@ -23,6 +23,7 @@ from app.models.application import Application, ApplicationStatus
 from app.models.audit import AuditLog
 from app.models.institution import InstitutionRecord
 from app.models.user import User
+from app.services.audit_chain import append_chained_audit_log
 from app.services.vision.forensics import ImageForensicsService
 from app.services.vision.geo_validator import GeoValidatorService
 from app.services.vision.object_detector import InfrastructureObjectDetector
@@ -192,8 +193,9 @@ async def analyze_infrastructure_photo(
             )
             db.add(anom_geo)
 
-        # Record in immutable audit trail
-        audit = AuditLog(
+        # Record in immutable cryptographic hash chain
+        await append_chained_audit_log(
+            db=db,
             actor=current_user.email,
             action="INFRASTRUCTURE_AI_SCRUTINY",
             application_id=app.id,
@@ -204,7 +206,6 @@ async def analyze_infrastructure_photo(
                 f"Equipment Compliance: {detection_result.get('compliance_status')}"
             ),
         )
-        db.add(audit)
         await db.commit()
 
         return {
