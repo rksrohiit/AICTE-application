@@ -50,7 +50,10 @@ class Settings(BaseSettings):
     MOCK_API_BASE_URL: str = "http://mock-apis:8001"
 
     # ── CORS ───────────────────────────────────────────────────────────────────
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    ALLOWED_ORIGINS: List[str] | str = [
+        "http://localhost:3000",
+        "http://localhost:8080",
+    ]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
