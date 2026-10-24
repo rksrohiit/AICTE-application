@@ -22,11 +22,6 @@ RUN echo 'server { \
         index index.html index.htm; \
         try_files $uri $uri/ /index.html; \
     } \
-    location /api/ { \
-        proxy_pass http://backend:8000/api/; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-    } \
 }' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 3000

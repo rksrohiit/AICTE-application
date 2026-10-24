@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: aicte_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aicte -d aicte_db"]
       interval: 10s
@@ -17,8 +15,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -31,9 +27,6 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -47,8 +40,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     env_file: ./backend/.env
-    ports:
-      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,16 +73,12 @@ services:
     build:
       context: ./mock-apis
       dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
     command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
     environment:
       - VITE_API_BASE_URL=/api/v1
       - VITE_APP_NAME=AICTE Validation Platform

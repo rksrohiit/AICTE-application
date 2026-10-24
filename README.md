@@ -68,19 +68,48 @@ To seed demo data after first start:
 docker compose exec backend python /app/scripts/seed_demo.py
 ```
 
+### Production deployment with HTTPS
+
+The production Compose overlay exposes only Nginx on ports 80 and 443. PostgreSQL,
+Redis, RustFS, the backend, mock APIs, and the frontend remain private on the
+Compose network and must not be opened in the EC2 security group.
+
+Create a DNS `A` record for the EC2 public address, obtain a certificate whose
+files are available at `deploy/certbot/conf/live/<your-domain>/`, and start the
+production overlay:
+
+```bash
+export DOMAIN_NAME=app.example.com
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+The certificate files must be:
+
+```text
+deploy/certbot/conf/live/app.example.com/fullchain.pem
+deploy/certbot/conf/live/app.example.com/privkey.pem
+```
+
+HTTP is redirected to HTTPS and the ACME challenge path is preserved for
+certificate renewal. Do not start the production overlay until DNS points to
+the instance and the certificate files exist; Nginx will intentionally refuse
+to start without them.
+
 ---
 
 ## Service URLs
 
 | Service | URL | Notes |
 |---------|-----|-------|
-| **Frontend** | http://localhost:3000 | React + Vite SPA |
-| **Backend API** | http://localhost:8000 | FastAPI |
-| **API Docs (Swagger)** | http://localhost:8000/docs | Interactive API explorer |
-| **API Docs (ReDoc)** | http://localhost:8000/redoc | Alternative docs UI |
-| **MinIO Console** | http://localhost:9001 | Object storage admin |
-| **Mock Issuer APIs** | http://localhost:8001 | External API simulator |
-| **Nginx Gateway** | http://localhost | Production-like proxy |
+| **Frontend** | http://localhost | React SPA through Nginx |
+| **Backend API** | http://localhost/api/v1 | FastAPI through Nginx |
+| **API Docs (Swagger)** | http://localhost/docs | Interactive API explorer |
+| **API Docs (ReDoc)** | http://localhost/redoc | Alternative docs UI |
+| **Nginx Gateway** | http://localhost | The only host-published service |
+
+PostgreSQL, Redis, RustFS, the mock issuer APIs, the backend, and the frontend
+are private Compose-network services. Their container ports are intentionally
+not published to the host.
 
 ---
 
