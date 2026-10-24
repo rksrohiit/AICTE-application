@@ -31,7 +31,7 @@ function AlertBanner({
   alert: ApplicationAlert;
   onDismiss: () => void;
 }) {
-  const colorMap = {
+  const colorMap: Record<string, string> = {
     HIGH: 'bg-danger-50 border-danger-200 text-danger-800',
     MEDIUM: 'bg-warning-50 border-warning-200 text-warning-800',
     LOW: 'bg-blue-50 border-blue-200 text-blue-800',

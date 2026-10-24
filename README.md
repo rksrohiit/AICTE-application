@@ -139,12 +139,16 @@ All demo accounts use the password: **`Demo@1234`**
 | Frontend | React 18, Vite, TailwindCSS, shadcn/ui | User interface |
 | Backend | FastAPI, SQLAlchemy (async), Pydantic v2 | REST API |
 | Task Queue | Celery + Redis | Background OCR, validation, AI tasks |
-| Database | PostgreSQL 15 | Persistent data store |
+| Database | PostgreSQL 15 | Persistent data store (required; SQLite is not supported) |
 | Object Storage | MinIO (S3-compatible) | Document file storage |
 | OCR | pytesseract / pdf2image | Text extraction from documents |
 | AI | Google Gemini API (configurable) | Field extraction, consistency checks |
 | Rules Engine | PyYAML + custom engine | Declarative validation rules |
 | Auth | JWT (access + refresh tokens) | Authentication and authorization |
+
+The backend requires PostgreSQL because the schema relies on PostgreSQL UUID and
+JSONB types. Configure `DATABASE_URL` explicitly in `backend/.env`; SQLite is
+intentionally rejected instead of producing a partially working database.
 
 ---
 

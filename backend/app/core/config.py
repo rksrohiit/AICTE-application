@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import List
 
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
     # ── Database ───────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "sqlite+aiosqlite:///aicte.db"
+    # The production schema uses PostgreSQL UUID/JSONB types and is intentionally
+    # not silently downgraded to SQLite.
+    DATABASE_URL: str = "postgresql://localhost:5432/aicte_db"
 
     # ── Redis / Celery ─────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://redis:6379/0"
@@ -61,10 +63,11 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         """Return the async-compatible database URL."""
-        if "sqlite" in self.DATABASE_URL:
-            if "aiosqlite" not in self.DATABASE_URL:
-                return self.DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://")
-            return self.DATABASE_URL
+        if not self.DATABASE_URL.startswith(("postgresql://", "postgres://")):
+            raise ValueError(
+                "DATABASE_URL must use PostgreSQL (postgresql:// or postgres://). "
+                "SQLite is not supported because the schema uses PostgreSQL UUID/JSONB types."
+            )
         return self.DATABASE_URL.replace(
             "postgresql://", "postgresql+asyncpg://"
         ).replace("postgres://", "postgresql+asyncpg://")

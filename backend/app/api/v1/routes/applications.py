@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -19,6 +20,9 @@ from app.models.user import User, UserRole
 from app.models.validation import ValidationRun
 from app.models.audit import AuditLog
 from app.models.alert import ApplicationAlert
+from app.models.document import Document
+from app.models.anomaly import AnomalyFlag
+from app.models.verification import VerificationResult
 from app.services.audit_chain import append_chained_audit_log, verify_audit_chain
 from app.schemas.application import ApplicationCreate, ApplicationListResponse, ApplicationResponse
 from app.schemas.validation import ValidationFindingResponse, ValidationReportResponse, ValidationRunResponse
@@ -280,6 +284,25 @@ async def get_validation_report(
         select(ValidationFinding).where(ValidationFinding.validation_run_id == run.id)
     )
     findings = findings_result.scalars().all()
+    application_result = await db.execute(select(Application).where(Application.id == app_id))
+    application = application_result.scalar_one()
+    documents_result = await db.execute(select(Document).where(Document.application_id == app_id))
+    documents = documents_result.scalars().all()
+    alerts_result = await db.execute(
+        select(ApplicationAlert).where(ApplicationAlert.application_id == app_id)
+    )
+    alerts = alerts_result.scalars().all()
+    anomalies_result = await db.execute(
+        select(AnomalyFlag).where(AnomalyFlag.application_id == app_id)
+    )
+    anomalies = anomalies_result.scalars().all()
+    verifications_result = await db.execute(
+        select(VerificationResult)
+        .options(joinedload(VerificationResult.document))
+        .join(Document, VerificationResult.document_id == Document.id)
+        .where(Document.application_id == app_id)
+    )
+    verifications = verifications_result.scalars().all()
 
     summary: Dict[str, Any] = {
         "total_findings": len(findings),
@@ -291,9 +314,25 @@ async def get_validation_report(
     }
 
     return ValidationReportResponse(
+        application=ApplicationResponse.model_validate(application),
+        documents=[DocumentResponse.model_validate(document) for document in documents],
+        alerts=[
+            {
+                "id": str(alert.id),
+                "alert_type": alert.alert_type,
+                "severity": alert.severity,
+                "message": alert.message,
+                "is_resolved": alert.is_resolved,
+                "created_at": alert.created_at,
+                "resolved_at": alert.resolved_at,
+            }
+            for alert in alerts
+        ],
         run=ValidationRunResponse.model_validate(run),
         findings=[ValidationFindingResponse.model_validate(f) for f in findings],
         summary=summary,
+        anomalies=[AnomalyFlagResponse.model_validate(anomaly) for anomaly in anomalies],
+        verifications=[{"id": str(v.id), "status": v.status.value, "source": v.source_name, "doc_type": v.document.doc_type.value if v.document else "UNKNOWN", "reference_number": v.reference_id, "verified_at": v.verified_at} for v in verifications],
     )
 
 
@@ -600,4 +639,3 @@ async def generate_pdf_report(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=validation_report_{app_id}.pdf"},
     )
-

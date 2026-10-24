@@ -1,6 +1,7 @@
-"""
-scripts/seed_sqlite.py — Universal SQLAlchemy Demo Seeder
-AICTE AI-Powered Application Validation Platform
+"""Compatibility entry point for the PostgreSQL demo seeder.
+
+The project no longer supports SQLite because the ORM schema uses PostgreSQL
+UUID and JSONB columns.
 """
 
 import asyncio
@@ -27,6 +28,10 @@ from app.models.alert import ApplicationAlert
 
 
 async def seed():
+    if "postgres" not in engine.url.drivername:
+        raise RuntimeError(
+            "SQLite seeding is no longer supported. Configure DATABASE_URL for PostgreSQL."
+        )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

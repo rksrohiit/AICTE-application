@@ -11,6 +11,9 @@ from typing import Any, Dict, List
 from pydantic import BaseModel
 
 from app.models.validation import FindingSeverity, FindingStatus, RunStatus
+from app.schemas.application import ApplicationResponse
+from app.schemas.document import DocumentResponse
+from app.schemas.anomaly import AnomalyFlagResponse
 
 
 class ValidationFindingResponse(BaseModel):
@@ -50,6 +53,11 @@ class ValidationRunResponse(BaseModel):
 class ValidationReportResponse(BaseModel):
     """Comprehensive validation report combining run metadata and all findings."""
 
+    application: ApplicationResponse
+    documents: List[DocumentResponse]
+    alerts: List[Dict[str, Any]]
     run: ValidationRunResponse
     findings: List[ValidationFindingResponse]
     summary: Dict[str, Any]
+    anomalies: List[AnomalyFlagResponse] = []
+    verifications: List[Dict[str, Any]] = []
