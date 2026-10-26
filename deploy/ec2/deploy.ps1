@@ -7,7 +7,7 @@ param(
 
     [string]$Profile = "dosje-dev",
     [string]$Region = "ap-southeast-2",
-    [string]$InstanceType = "t3.large",
+    [string]$InstanceType = "t3.small",
     [string]$Repository = "https://github.com/rksrohiit/AICTE-application.git",
     [string]$Branch = "rksrohiit-analyze-repository"
 )
