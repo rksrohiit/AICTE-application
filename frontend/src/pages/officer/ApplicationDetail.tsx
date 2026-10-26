@@ -141,16 +141,27 @@ export default function ApplicationDetail() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!application) return;
+    const processing =
+      application.status === 'UNDER_VALIDATION' ||
+      documents.some((document) => document.ocr_status === 'PENDING' || document.ocr_status === 'PROCESSING');
+    if (!processing) return;
+
+    const interval = window.setInterval(() => {
+      void loadData();
+    }, 4000);
+    return () => window.clearInterval(interval);
+  }, [application, documents, loadData]);
+
   const handleTriggerValidate = async () => {
     if (!id) return;
     setValidating(true);
     try {
       await api.applications.validate(id);
-      toast.success('Validation process enqueued. Refreshing in 3 seconds...');
-      setTimeout(() => {
-        loadData();
-        setValidating(false);
-      }, 3000);
+      toast.success('Validation process queued. Live status updates are enabled.');
+      await loadData();
+      setValidating(false);
     } catch {
       toast.error('Failed to trigger validation');
       setValidating(false);
