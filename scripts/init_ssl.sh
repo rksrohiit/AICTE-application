@@ -42,11 +42,42 @@ if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "localhost" ]; then
 fi
 
 echo "[+] Generating 2048-bit RSA Self-Signed SSL Certificate for HTTPS..."
+OPENSSL_CNF=$(mktemp)
+cat <<EOF > "$OPENSSL_CNF"
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = IN
+ST = Delhi
+L = New Delhi
+O = AICTE
+OU = Verification
+CN = ${DOMAIN:-localhost}
+
+[v3_req]
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+EOF
+
+if [[ "$DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "IP.2 = $DOMAIN" >> "$OPENSSL_CNF"
+else
+    echo "DNS.2 = ${DOMAIN:-localhost}" >> "$OPENSSL_CNF"
+fi
+
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout "$SSL_DIR/privkey.pem" \
     -out "$SSL_DIR/fullchain.pem" \
-    -subj "/C=IN/ST=Delhi/L=New Delhi/O=AICTE/OU=Verification/CN=${DOMAIN:-localhost}" \
-    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+    -config "$OPENSSL_CNF"
+rm -f "$OPENSSL_CNF"
 
 echo "[✓] High-grade self-signed SSL certificate successfully generated in $SSL_DIR/"
 echo "    - Private Key: $SSL_DIR/privkey.pem"

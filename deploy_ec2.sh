@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# deploy_ec2.sh — Complete Automated AWS EC2 Deployment Script
+# deploy_ec2.sh — Complete Universal Automated AWS EC2 Deployment Script
+# Supports: Amazon Linux 2023, Amazon Linux 2, Ubuntu, Debian, CentOS, RHEL
 # AICTE AI-Powered Application Validation Platform
 #
 # Usage:
-#   chmod +x deploy_ec2.sh
 #   sudo ./deploy_ec2.sh [optional-domain-name] [optional-email]
-#
-# Example:
-#   sudo ./deploy_ec2.sh aicte.example.com admin@example.com
-#   sudo ./deploy_ec2.sh  # (Deploys using Public IP with Self-Signed HTTPS)
 # ==============================================================================
 
 set -euo pipefail
@@ -18,69 +14,119 @@ DOMAIN="${1:-}"
 EMAIL="${2:-admin@aicte.gov.in}"
 
 echo "======================================================================"
-echo "  🚀 AICTE AI Application Validation Platform — AWS EC2 Deployer"
+echo "  🚀 AICTE AI Application Validation Platform — Universal EC2 Deployer"
 echo "======================================================================"
 
 # 1. Verify sudo / root privileges
 if [ "$(id -u)" -ne 0 ]; then
     echo "[-] Error: Please execute as root or with sudo:"
-    echo "    sudo ./deploy_ec2.sh $DOMAIN $EMAIL"
+    echo "    sudo ./deploy_ec2.sh"
     exit 1
 fi
 
-# Detect Public IP
-PUBLIC_IP=$(curl -s https://checkip.amazonaws.com || curl -s https://ifconfig.me || echo "localhost")
+# 2. Detect Public IP
+PUBLIC_IP=$(curl -s https://checkip.amazonaws.com || curl -s https://ifconfig.me || echo "3.26.145.164")
 echo "[+] Detected EC2 Public IP: $PUBLIC_IP"
 if [ -z "$DOMAIN" ]; then
     DOMAIN="$PUBLIC_IP"
     echo "[+] No custom domain specified. Using Public IP: $DOMAIN"
 fi
 
-# 2. System updates & install prerequisites
-echo "[+] Updating system packages and installing prerequisites..."
-apt-get update -y
-apt-get install -y --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release \
-    git \
-    openssl \
-    ufw
-
-# 3. Install Docker and Docker Compose (if not already installed)
-if ! command -v docker &> /dev/null; then
-    echo "[+] Installing Docker Engine..."
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-      tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    apt-get update -y
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    systemctl enable docker
-    systemctl start docker
-    echo "[✓] Docker installed successfully."
+# 3. Create Swap Space (Crucial for smooth Docker builds on t2.micro / t3.micro)
+TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+if [ ! -f /swapfile ] && [ "$TOTAL_RAM_MB" -lt 4000 ]; then
+    echo "[+] System RAM is ${TOTAL_RAM_MB}MB (<4GB). Creating 2GB swapfile..."
+    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab || true
+    echo "[✓] 2GB Swap space enabled."
 fi
 
-# 4. Configure EC2 Firewall (UFW)
-echo "[+] Configuring EC2 Firewall..."
-ufw allow 22/tcp || true   # SSH
-ufw allow 80/tcp || true   # HTTP (Certbot ACME challenge / redirect)
-ufw allow 443/tcp || true  # HTTPS (TLS)
-ufw --force enable || true
+# 4. Detect Package Manager and Install Dependencies
+echo "[+] Detecting Linux distribution and installing prerequisites..."
+PKG_MGR=""
 
-# 5. Provision SSL Certificates (Let's Encrypt or Self-Signed)
+if command -v dnf &> /dev/null; then
+    PKG_MGR="dnf"
+    echo "[+] Detected DNF (Amazon Linux 2023 / Fedora / RHEL 9)"
+    dnf update -y
+    dnf install -y git curl openssl docker
+elif command -v yum &> /dev/null; then
+    PKG_MGR="yum"
+    echo "[+] Detected YUM (Amazon Linux 2 / CentOS / RHEL)"
+    yum update -y
+    yum install -y git curl openssl docker
+elif command -v apt-get &> /dev/null; then
+    PKG_MGR="apt"
+    echo "[+] Detected APT (Ubuntu / Debian)"
+    apt-get update -y
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+        git \
+        openssl \
+        ufw
+    if ! command -v docker &> /dev/null; then
+        echo "[+] Installing Docker via official repository..."
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+        apt-get update -y
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    fi
+else
+    echo "[!] Unknown package manager. Checking for existing tools..."
+fi
+
+# 5. Start and Enable Docker Daemon
+echo "[+] Starting Docker service..."
+systemctl enable docker || true
+systemctl start docker || true
+
+# Grant permissions to common EC2 users
+usermod -aG docker ec2-user 2>/dev/null || true
+usermod -aG docker ubuntu 2>/dev/null || true
+
+# 6. Install Docker Compose CLI Plugin if missing
+if ! docker compose version &> /dev/null; then
+    echo "[+] Installing Docker Compose CLI plugin binary..."
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        x86_64) DOCKER_ARCH="x86_64" ;;
+        aarch64|arm64) DOCKER_ARCH="aarch64" ;;
+        *) DOCKER_ARCH="x86_64" ;;
+    esac
+    COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.26.1/docker-compose-linux-${DOCKER_ARCH}"
+    
+    mkdir -p /usr/local/lib/docker/cli-plugins /usr/libexec/docker/cli-plugins /usr/local/bin
+    curl -fsSL "$COMPOSE_URL" -o /usr/local/lib/docker/cli-plugins/docker-compose
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose || true
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/libexec/docker/cli-plugins/docker-compose || true
+    ln -sf /usr/local/lib/docker/cli-plugins/docker-compose /usr/bin/docker-compose || true
+    echo "[✓] Docker Compose installed successfully: $(docker compose version)"
+fi
+
+# 7. Configure UFW if installed
+if command -v ufw &> /dev/null; then
+    echo "[+] Configuring UFW..."
+    ufw allow 22/tcp || true
+    ufw allow 80/tcp || true
+    ufw allow 443/tcp || true
+    ufw --force enable || true
+fi
+
+# 8. Provision SSL Certificates (Let's Encrypt or Self-Signed)
 echo "[+] Provisioning HTTPS / SSL certificates..."
 chmod +x scripts/init_ssl.sh
 ./scripts/init_ssl.sh "$DOMAIN" "$EMAIL"
 
-# 6. Generate Production .env configuration
+# 9. Generate Production .env configuration
 if [ ! -f ".env" ]; then
     echo "[+] Generating production .env configuration..."
     JWT_SECRET=$(openssl rand -hex 32)
@@ -96,30 +142,41 @@ MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=$MINIO_PASSWORD
 JWT_SECRET_KEY=$JWT_SECRET
 EOF
-    echo "[✓] Created .env with cryptographically secure random secrets."
+    echo "[✓] Created .env configuration."
 fi
 
-# 7. Build and launch production Docker Compose stack
+# 10. Build and launch production Docker Compose stack
 echo "[+] Building and launching container services..."
 docker compose -f docker-compose.prod.yml down --remove-orphans || true
 docker compose -f docker-compose.prod.yml up -d --build
 
-# 8. Health checks and verification
-echo "[+] Waiting 15 seconds for containers to initialize..."
-sleep 15
-
-echo "[+] Checking running services..."
-docker compose -f docker-compose.prod.yml ps
-
-echo "======================================================================"
-echo "  🎉 Deployment Complete! Your platform is live on AWS EC2:"
-echo "======================================================================"
-echo "  🌐 HTTPS Web Portal : https://$DOMAIN/"
-echo "  📑 API Documentation: https://$DOMAIN/docs"
-echo "  🏥 Backend Health   : https://$DOMAIN/api/v1/health"
-echo "  🏛️ Mock APIs Health : https://$DOMAIN/mock-api/health"
+# 11. Wait for database and backend initialization
+echo "[+] Waiting for services to initialize..."
+for i in {1..40}; do
+    if docker compose -f docker-compose.prod.yml exec -T backend curl -s http://localhost:8000/api/v1/health &>/dev/null; then
+        echo "[✓] Backend API is up and healthy!"
+        break
+    fi
+    echo -n "."
+    sleep 3
+done
 echo ""
-echo "  Default Demo Credentials:"
+
+# 12. Seed database with demo data
+echo "[+] Seeding database with demo users, applications and verification records..."
+docker compose -f docker-compose.prod.yml exec -T backend python /scripts/seed_sqlite.py || true
+
+# 13. Output service status and access URLs
+echo "======================================================================"
+echo "  🎉 Deployment Complete! Your platform is LIVE on AWS EC2:"
+echo "======================================================================"
+echo "  🌐 Web Application   : http://$DOMAIN/"
+echo "  🔒 HTTPS Web Portal   : https://$DOMAIN/"
+echo "  📑 API Documentation : http://$DOMAIN/docs"
+echo "  🏛️ Mock APIs Docs     : http://$DOMAIN/mock-api/docs"
+echo "  🏥 Health Endpoint    : http://$DOMAIN/api/v1/health"
+echo ""
+echo "  Default Demo Credentials (One-Click or Manual):"
 echo "  - Officer Account     : officer@aicte.gov.in / password123"
 echo "  - Institution Account : registrar@bvcoe.edu.in / password123"
 echo "======================================================================"

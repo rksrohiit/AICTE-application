@@ -11,6 +11,8 @@ from pathlib import Path
 
 # Add backend directory to sys.path
 backend_path = Path(__file__).resolve().parent.parent / "backend"
+if not (backend_path / "app").exists():
+    backend_path = Path("/app")
 sys.path.insert(0, str(backend_path))
 
 from app.core.database import AsyncSessionLocal, Base, engine
@@ -94,7 +96,29 @@ async def seed():
             created_at=now,
             updated_at=now,
         )
-        session.add_all([user_inst, user_officer, user_senior])
+        user_officer_aicte = User(
+            id=uuid.uuid4(),
+            email="officer@aicte.gov.in",
+            full_name="Shri Alok Kumar (Scrutiny Officer)",
+            role=UserRole.OFFICER,
+            hashed_password=demo_pwd,
+            institution_id=None,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        user_reg_bvcoe = User(
+            id=uuid.uuid4(),
+            email="registrar@bvcoe.edu.in",
+            full_name="Dr. Ramesh Kulkarni (Principal)",
+            role=UserRole.INSTITUTION,
+            hashed_password=demo_pwd,
+            institution_id=inst_id,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add_all([user_inst, user_officer, user_senior, user_officer_aicte, user_reg_bvcoe])
 
         # 3. Create 8 Demo Applications
         scenarios = [
