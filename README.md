@@ -95,6 +95,22 @@ certificate renewal. Do not start the production overlay until DNS points to
 the instance and the certificate files exist; Nginx will intentionally refuse
 to start without them.
 
+To create a hardened single-instance EC2 host after authenticating the AWS CLI,
+run the deployment helper from Windows PowerShell. It opens only ports 80 and
+443, requires IMDSv2, encrypts the 50 GiB gp3 root volume, and does not place
+credentials in EC2 user data:
+
+```powershell
+aws login --profile dosje-dev --remote
+aws sts get-caller-identity --profile dosje-dev
+.\deploy\ec2\deploy.ps1 -DomainName app.example.com -KeyName my-ec2-key
+```
+
+The helper bootstraps Docker and checks out the selected branch, but intentionally
+does not start the production stack until production secrets, DNS, and the TLS
+certificate are configured on the host. Review `/opt/aicte/README-FIRST.txt` on
+the instance before starting Compose.
+
 ---
 
 ## Service URLs
