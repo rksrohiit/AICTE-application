@@ -39,7 +39,7 @@ if ($null -eq $vpc.VpcId) {
 $subnet = Invoke-AwsJson @(
     "ec2", "describe-subnets",
     "--filters", "Name=vpc-id,Values=$($vpc.VpcId)",
-    "--query", "Subnets[?MapPublicIpOnLaunch==`true`][0]",
+    "--query", "Subnets[0]",
     "--output", "json"
 )
 if ($null -eq $subnet.SubnetId) {
@@ -73,14 +73,18 @@ $rules = @(
     @{ Port = 443; Description = "HTTPS application traffic" }
 )
 foreach ($rule in $rules) {
-    & aws ec2 authorize-security-group-ingress `
-        --group-id $groupId `
-        --protocol tcp `
-        --port $rule.Port `
-        --cidr 0.0.0.0/0 `
-        --description $rule.Description `
-        --profile $Profile `
-        --region $Region 2>$null
+    try {
+        & aws ec2 authorize-security-group-ingress `
+            --group-id $groupId `
+            --protocol tcp `
+            --port $rule.Port `
+            --cidr 0.0.0.0/0 `
+            --description $rule.Description `
+            --profile $Profile `
+            --region $Region 2>$null
+    } catch {
+        Write-Host "Ingress rule for port $($rule.Port) already exists or could not be added; continuing."
+    }
 }
 
 $userData = @"
