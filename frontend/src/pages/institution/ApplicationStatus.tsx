@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -58,6 +58,43 @@ export default function ApplicationStatus() {
   const queryClient = useQueryClient();
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [uploadingDoc, setUploadingDoc] = useState<DocType | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.port === '3000' ? `${window.location.hostname}:8000` : window.location.host;
+    const wsUrl = `${protocol}//${host}/ws/${id}`;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'RECTIFICATION_REQUESTED') {
+            toast.error(`⚠️ Rectification Notice: ${data.message}`, { duration: 8000 });
+            queryClient.invalidateQueries({ queryKey: ['application-report', id] });
+          } else if (data.type === 'APPLICATION_APPROVED') {
+            toast.success(`🎉 Congratulations: ${data.message}`, { duration: 8000 });
+            queryClient.invalidateQueries({ queryKey: ['application-report', id] });
+          }
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [id, queryClient]);
 
   const { data: report, isLoading } = useQuery({
     queryKey: ['application-report', id],

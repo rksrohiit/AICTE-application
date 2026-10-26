@@ -148,9 +148,13 @@ async def verify_audit_chain(
 
     for idx, rec in enumerate(records):
         rec_prev = rec.prev_hash or GENESIS_HASH
+        rec_ts = rec.timestamp
+        if rec_ts.tzinfo is None:
+            rec_ts = rec_ts.replace(tzinfo=timezone.utc)
+
         expected_hash = compute_audit_hash(
             prev_hash=rec_prev,
-            timestamp_str=rec.timestamp.isoformat(),
+            timestamp_str=rec_ts.isoformat(),
             actor=rec.actor,
             action=rec.action,
             application_id=str(rec.application_id) if rec.application_id else None,
@@ -168,6 +172,8 @@ async def verify_audit_chain(
                 "error_type": "PREV_HASH_DISCONTINUITY",
                 "expected_prev_hash": expected_prev,
                 "actual_prev_hash": rec_prev,
+                "head_hash": expected_prev,
+                "genesis_hash": GENESIS_HASH,
                 "total_records": len(records),
                 "verified_at": datetime.now(timezone.utc).isoformat(),
                 "message": f"Cryptographic continuity broken at record #{idx + 1} ({rec.action}).",
@@ -183,6 +189,8 @@ async def verify_audit_chain(
                 "error_type": "CONTENT_TAMPERING_DETECTED",
                 "recorded_hash": rec.entry_hash,
                 "recomputed_hash": expected_hash,
+                "head_hash": rec.entry_hash or expected_prev,
+                "genesis_hash": GENESIS_HASH,
                 "total_records": len(records),
                 "verified_at": datetime.now(timezone.utc).isoformat(),
                 "message": f"Tampering detected! Record #{idx + 1} content has been modified.",
@@ -193,7 +201,7 @@ async def verify_audit_chain(
             {
                 "step": idx + 1,
                 "id": str(rec.id),
-                "timestamp": rec.timestamp.isoformat(),
+                "timestamp": rec_ts.isoformat(),
                 "actor": rec.actor,
                 "action": rec.action,
                 "result": rec.result,

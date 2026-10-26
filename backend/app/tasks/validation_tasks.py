@@ -17,15 +17,23 @@ from app.core.config import settings
 from app.tasks.celery_app import celery_app
 
 # ── Sync engine (Celery workers are synchronous) ──────────────────────────────
-_sync_engine = create_engine(
-    settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-    .replace("postgresql://", "postgresql+psycopg2://")
-    if "asyncpg" in settings.DATABASE_URL
-    else settings.DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://"),
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-)
+sync_db_url = settings.DATABASE_URL
+if "sqlite+aiosqlite://" in sync_db_url:
+    sync_db_url = sync_db_url.replace("sqlite+aiosqlite://", "sqlite://")
+elif "postgresql+asyncpg://" in sync_db_url:
+    sync_db_url = sync_db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+elif "postgresql://" in sync_db_url and "psycopg2" not in sync_db_url:
+    sync_db_url = sync_db_url.replace("postgresql://", "postgresql+psycopg2://")
+
+_sync_kwargs: Dict[str, Any] = {}
+if "sqlite" in sync_db_url:
+    _sync_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    _sync_kwargs["pool_pre_ping"] = True
+    _sync_kwargs["pool_size"] = 5
+    _sync_kwargs["max_overflow"] = 10
+
+_sync_engine = create_engine(sync_db_url, **_sync_kwargs)
 SyncSession = sessionmaker(bind=_sync_engine, autoflush=False, autocommit=False)
 
 # ── Rules YAML path ────────────────────────────────────────────────────────────
@@ -382,7 +390,9 @@ def run_validation(self, application_id: str) -> Dict[str, Any]:
                 db.commit()
         except Exception:
             db.rollback()
-        raise self.retry(exc=exc)
+        if self is not None and hasattr(self, "retry"):
+            raise self.retry(exc=exc)
+        raise exc
     finally:
         db.close()
 
@@ -495,7 +505,9 @@ def run_anomaly_detection(self, application_id: str) -> Dict[str, Any]:
 
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc)
+        if self is not None and hasattr(self, "retry"):
+            raise self.retry(exc=exc)
+        raise exc
     finally:
         db.close()
 
@@ -632,6 +644,8 @@ def run_verification(self, application_id: str) -> Dict[str, Any]:
 
     except Exception as exc:
         db.rollback()
-        raise self.retry(exc=exc)
+        if self is not None and hasattr(self, "retry"):
+            raise self.retry(exc=exc)
+        raise exc
     finally:
         db.close()

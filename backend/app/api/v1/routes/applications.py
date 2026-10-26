@@ -8,12 +8,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_officer
+from app.core.websocket import manager
 from app.models.application import Application, ApplicationStatus
 from app.models.user import User, UserRole
 from app.models.validation import ValidationRun
@@ -189,18 +190,12 @@ async def get_application(
 )
 async def trigger_validation(
     app_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Enqueue a Celery validation task for the given application.
-
-    Args:
-        app_id:       Application UUID.
-        db:           Async database session.
-        current_user: Authenticated user.
-
-    Returns:
-        A dict with the task id and status message.
+    """Enqueue an automated validation task for the given application.
+    Runs via Celery if available, or seamlessly via in-process background task runner.
     """
     from app.tasks.validation_tasks import run_validation  # lazy import to avoid circular deps
 
@@ -221,12 +216,21 @@ async def trigger_validation(
         result="QUEUED",
         notes=f"Automated AI validation engine initiated by {current_user.email}",
     )
-    await db.flush()
+    await db.commit()
 
-    task = run_validation.delay(str(app_id))
+    task_id = str(uuid.uuid4())
+    try:
+        from app.tasks.celery_app import HAS_CELERY
+        if HAS_CELERY:
+            task = run_validation.delay(str(app_id))
+            task_id = str(getattr(task, "id", task_id))
+        else:
+            background_tasks.add_task(run_validation, None, str(app_id))
+    except Exception:
+        background_tasks.add_task(run_validation, None, str(app_id))
 
     return {
-        "task_id": task.id,
+        "task_id": task_id,
         "application_id": str(app_id),
         "status": "QUEUED",
         "message": "Validation task successfully queued.",
@@ -430,6 +434,7 @@ async def officer_action(
 
     action_status_map: Dict[str, ApplicationStatus] = {
         "APPROVE": ApplicationStatus.APPROVED_FOR_PROCESSING,
+        "APPROVE_FOR_PROCESSING": ApplicationStatus.APPROVED_FOR_PROCESSING,
         "REJECT": ApplicationStatus.REJECTED,
         "ESCALATE": ApplicationStatus.ESCALATED,
         "SEND_FOR_RECTIFICATION": ApplicationStatus.SENT_FOR_RECTIFICATION,
@@ -445,6 +450,40 @@ async def officer_action(
 
     app.status = new_status
     app.updated_at = datetime.now(timezone.utc)
+
+    # Real-time rectification alert creation and live broadcast
+    if action == "SEND_FOR_RECTIFICATION":
+        rect_msg = notes or "Officer has sent the application for rectification. Please review and resubmit."
+        alert = ApplicationAlert(
+            application_id=app.id,
+            alert_type="RECTIFICATION_REQUESTED",
+            severity="HIGH",
+            message=rect_msg,
+        )
+        db.add(alert)
+        await manager.broadcast_to_application(
+            str(app.id),
+            {
+                "type": "RECTIFICATION_REQUESTED",
+                "application_id": str(app.id),
+                "message": rect_msg,
+                "action": action,
+                "actor": current_user.email,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    elif action in ("APPROVE", "APPROVE_FOR_PROCESSING"):
+        await manager.broadcast_to_application(
+            str(app.id),
+            {
+                "type": "APPLICATION_APPROVED",
+                "application_id": str(app.id),
+                "message": notes or "Application has been approved for processing.",
+                "action": action,
+                "actor": current_user.email,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
     await append_chained_audit_log(
         db=db,

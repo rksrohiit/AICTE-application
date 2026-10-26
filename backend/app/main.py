@@ -9,7 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import api_router
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.core.websocket import manager
 from app.services.ocr.storage import StorageService
 
 logging.basicConfig(
@@ -76,6 +77,21 @@ app.add_middleware(
 
 # ── Include API Routers ────────────────────────────────────────────────────────
 app.include_router(api_router)
+
+
+# ── Realtime WebSocket Endpoint ───────────────────────────────────────────────
+@app.websocket("/ws/{application_id}")
+async def application_websocket_endpoint(websocket: WebSocket, application_id: str):
+    """Subscribes client to live notifications and rectification updates for an application."""
+    await manager.connect(websocket, application_id)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_json({"type": "HEARTBEAT_ACK", "status": "ALIVE"})
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, application_id)
+    except Exception:
+        manager.disconnect(websocket, application_id)
 
 
 # ── Root Welcome / Portal Navigation ───────────────────────────────────────────

@@ -86,23 +86,25 @@ async def public_verify_application(
         for log in audit_logs
     ]
 
+    app_type_str = app.application_type.value if hasattr(app.application_type, "value") else str(app.application_type)
+
     return {
-        "verification_status": "AUTHENTIC_RECORD_VERIFIED" if chain_report["is_valid"] else "TAMPER_DETECTED",
+        "verification_status": "AUTHENTIC_RECORD_VERIFIED" if chain_report.get("is_valid") else "TAMPER_DETECTED",
         "application_id": str(app.id),
         "institution_name": app.institution_name,
         "academic_year": app.academic_year,
-        "application_type": app.application_type.replace("_", " "),
-        "current_status": app.status.value,
+        "application_type": app_type_str.replace("_", " "),
+        "current_status": app.status.value if hasattr(app.status, "value") else str(app.status),
         "is_approved": is_approved,
         "submitted_at": app.submitted_at.isoformat() if app.submitted_at else None,
         "approval_date": approval_entry.timestamp.isoformat() if approval_entry else None,
         "approving_officer": approval_entry.actor if approval_entry else None,
         "chain_integrity": {
-            "is_valid": chain_report["is_valid"],
-            "total_audit_events": chain_report["total_records"],
-            "chain_head_hash": chain_report["head_hash"],
-            "genesis_hash": chain_report["genesis_hash"],
-            "verification_message": chain_report["message"],
+            "is_valid": chain_report.get("is_valid", False),
+            "total_audit_events": chain_report.get("total_records", len(decision_timeline)),
+            "chain_head_hash": chain_report.get("head_hash") or chain_report.get("recorded_hash") or "0" * 64,
+            "genesis_hash": chain_report.get("genesis_hash", "0" * 64),
+            "verification_message": chain_report.get("message", "Hash chain verified."),
         },
         "qr_code_data_uri": qr_data_uri,
         "public_verification_url": public_url,

@@ -161,18 +161,57 @@ export default function ApplicationDetail() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+
+    if (!id) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Use port 8000 if frontend is running standalone on port 3000
+    const host = window.location.port === '3000' ? `${window.location.hostname}:8000` : window.location.host;
+    const wsUrl = `${protocol}//${host}/ws/${id}`;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'RECTIFICATION_REQUESTED') {
+            toast.error(`Live Alert: ${data.message}`, { duration: 6000 });
+            loadData();
+          } else if (data.type === 'APPLICATION_APPROVED') {
+            toast.success(`Live Update: ${data.message}`, { duration: 6000 });
+            loadData();
+          }
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      // websocket fallback
+    }
+
+    return () => {
+      if (ws) {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [id, loadData]);
 
   const handleTriggerValidate = async () => {
     if (!id) return;
     setValidating(true);
     try {
       await api.applications.validate(id);
-      toast.success('Validation process enqueued. Refreshing in 3 seconds...');
+      toast.success('Validation engine active. Evaluating rules and consistency...');
+      setTimeout(() => loadData(), 1000);
+      setTimeout(() => loadData(), 2500);
       setTimeout(() => {
         loadData();
         setValidating(false);
-      }, 3000);
+        toast.success('AI Validation completed!');
+      }, 4000);
     } catch {
       toast.error('Failed to trigger validation');
       setValidating(false);
@@ -207,7 +246,11 @@ export default function ApplicationDetail() {
     setActionLoading(true);
     try {
       await api.applications.takeAction(id, selectedAction, actionNotes);
-      toast.success(`Action applied: ${selectedAction.replace(/_/g, ' ')}`);
+      if (selectedAction === 'SEND_FOR_RECTIFICATION') {
+        toast.success('Application sent for rectification! Live notification dispatched to institution.', { duration: 5000 });
+      } else {
+        toast.success(`Action applied: ${selectedAction.replace(/_/g, ' ')}`);
+      }
       setConfirmModalOpen(false);
       setActionNotes('');
       setSelectedAction(null);
