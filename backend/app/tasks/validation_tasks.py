@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 from app.tasks.celery_app import celery_app
+from app.services.audit_chain import append_chained_audit_log_sync
 
 # ── Sync engine (Celery workers are synchronous) ──────────────────────────────
 sync_db_url = settings.DATABASE_URL
@@ -275,14 +276,14 @@ def run_validation(self, application_id: str) -> Dict[str, Any]:
         db.add(run)
         db.flush()
 
-        audit_start = AuditLog(
+        append_chained_audit_log_sync(
+            db=db,
             actor="SYSTEM",
             action="VALIDATION_STARTED",
             application_id=app_uuid,
             result="RUNNING",
             notes=f"Rules count: {len(rules)}",
         )
-        db.add(audit_start)
         db.commit()
 
         # ── Load documents ────────────────────────────────────────────────────
@@ -346,7 +347,8 @@ def run_validation(self, application_id: str) -> Dict[str, Any]:
         app.status = ApplicationStatus.VALIDATION_COMPLETE
         app.updated_at = datetime.now(timezone.utc)
 
-        audit_done = AuditLog(
+        append_chained_audit_log_sync(
+            db=db,
             actor="SYSTEM",
             action="VALIDATION_COMPLETE",
             application_id=app_uuid,
@@ -356,7 +358,6 @@ def run_validation(self, application_id: str) -> Dict[str, Any]:
                 f"Total rules evaluated: {total_evaluatable}, passed: {pass_count}."
             ),
         )
-        db.add(audit_done)
         db.commit()
 
         # ── Trigger downstream subtasks ───────────────────────────────────────
@@ -491,14 +492,14 @@ def run_anomaly_detection(self, application_id: str) -> Dict[str, Any]:
                     db.add(flag)
                     anomaly_count += 1
 
-        audit = AuditLog(
+        append_chained_audit_log_sync(
+            db=db,
             actor="SYSTEM",
             action="ANOMALY_DETECTION_COMPLETE",
             application_id=app_uuid,
             result=f"FLAGS:{anomaly_count}",
             notes=f"Anomaly detection complete. {anomaly_count} flag(s) raised.",
         )
-        db.add(audit)
         db.commit()
 
         return {"application_id": application_id, "anomalies_flagged": anomaly_count}
@@ -626,14 +627,14 @@ def run_verification(self, application_id: str) -> Dict[str, Any]:
                 db.add(vr)
                 failed_count += 1
 
-        audit = AuditLog(
+        append_chained_audit_log_sync(
+            db=db,
             actor="SYSTEM",
             action="VERIFICATION_COMPLETE",
             application_id=app_uuid,
             result=f"VERIFIED:{verified_count},FAILED:{failed_count}",
             notes=f"Verification complete. {verified_count} succeeded, {failed_count} failed/unavailable.",
         )
-        db.add(audit)
         db.commit()
 
         return {

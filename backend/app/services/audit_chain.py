@@ -116,6 +116,57 @@ async def append_chained_audit_log(
     return log_entry
 
 
+def append_chained_audit_log_sync(
+    db: Any,
+    actor: str,
+    action: str,
+    application_id: Optional[uuid.UUID] = None,
+    document_id: Optional[uuid.UUID] = None,
+    rule_id: Optional[str] = None,
+    result: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> AuditLog:
+    """Create and append an immutable, hash-linked audit log entry synchronously for background tasks."""
+    prev_hash = GENESIS_HASH
+    if application_id:
+        last = (
+            db.query(AuditLog)
+            .filter(AuditLog.application_id == application_id)
+            .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
+            .first()
+        )
+        if last and last.entry_hash:
+            prev_hash = last.entry_hash
+
+    now = datetime.now(timezone.utc)
+    entry_hash = compute_audit_hash(
+        prev_hash=prev_hash,
+        timestamp_str=now.isoformat(),
+        actor=actor,
+        action=action,
+        application_id=str(application_id) if application_id else None,
+        result=result,
+        notes=notes,
+    )
+
+    log_entry = AuditLog(
+        id=uuid.uuid4(),
+        event_id=uuid.uuid4(),
+        timestamp=now,
+        actor=actor,
+        action=action,
+        application_id=application_id,
+        document_id=document_id,
+        rule_id=rule_id,
+        result=result,
+        notes=notes,
+        prev_hash=prev_hash,
+        entry_hash=entry_hash,
+    )
+    db.add(log_entry)
+    return log_entry
+
+
 async def verify_audit_chain(
     db: AsyncSession, application_id: uuid.UUID
 ) -> Dict[str, Any]:
@@ -257,18 +308,25 @@ async def backfill_existing_audit_logs(db: AsyncSession) -> int:
     for app_id, logs in app_groups.items():
         prev = GENESIS_HASH
         for rec in logs:
-            if not rec.entry_hash or not rec.prev_hash:
+            rec_ts = rec.timestamp
+            if rec_ts.tzinfo is None:
+                rec_ts = rec_ts.replace(tzinfo=timezone.utc)
+
+            expected_h = compute_audit_hash(
+                prev_hash=prev,
+                timestamp_str=rec_ts.isoformat(),
+                actor=rec.actor,
+                action=rec.action,
+                application_id=str(rec.application_id) if rec.application_id else None,
+                result=rec.result,
+                notes=rec.notes,
+            )
+
+            if rec.prev_hash != prev or rec.entry_hash != expected_h:
                 rec.prev_hash = prev
-                rec.entry_hash = compute_audit_hash(
-                    prev_hash=prev,
-                    timestamp_str=rec.timestamp.isoformat(),
-                    actor=rec.actor,
-                    action=rec.action,
-                    application_id=str(rec.application_id) if rec.application_id else None,
-                    result=rec.result,
-                    notes=rec.notes,
-                )
+                rec.entry_hash = expected_h
                 updated_count += 1
+
             prev = rec.entry_hash
 
     if updated_count > 0:
