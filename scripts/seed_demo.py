@@ -62,7 +62,7 @@ try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
 
-    from app.core.security import hash_password, RealDictCursor
+    from app.core.security import hash_password
 except ImportError:
     print(
         "ERROR: psycopg2 not installed. Run: pip install psycopg2-binary",
