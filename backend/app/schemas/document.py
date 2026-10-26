@@ -23,8 +23,12 @@ class DocumentResponse(BaseModel):
     file_size: int
     mime_type: str
     ocr_status: OCRStatus
-    extracted_data: Dict[str, Any] | None
-    file_hash: str | None
+    processing_status: str = "UPLOADED"
+    error_message: str | None = None
+    retry_count: int = 0
+    extracted_data: Dict[str, Any] | None = None
+    extracted_claims: list[Dict[str, Any]] | None = None
+    file_hash: str | None = None
     uploaded_at: datetime
     updated_at: datetime
 
@@ -39,4 +43,5 @@ class DocumentUploadResponse(BaseModel):
     file_size: int
     doc_type: DocumentType
     ocr_status: OCRStatus
-    message: str = "Document uploaded successfully. OCR processing queued."
+    processing_status: str = "UPLOADED"
+    message: str = "Document uploaded and validated. OCR and structured extraction queued."

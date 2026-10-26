@@ -41,6 +41,7 @@ import { VerificationStatusChip } from '@/components/shared/VerificationStatusCh
 import { AuditTimeline } from '@/components/shared/AuditTimeline';
 import { InfrastructureScrutinyPanel } from '@/components/shared/InfrastructureScrutinyPanel';
 import { CampusPlotBoundaryPanel } from '@/components/shared/CampusPlotBoundaryPanel';
+import { CrossDocumentConsistencyCard } from '@/components/shared/CrossDocumentConsistencyCard';
 
 type TabKey =
   | 'overview'
@@ -77,6 +78,27 @@ export default function ApplicationDetail() {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<PublicVerificationData | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [retryingDocId, setRetryingDocId] = useState<string | null>(null);
+
+  const handleRetryDocument = async (docId: string) => {
+    setRetryingDocId(docId);
+    try {
+      await api.documents.retry(docId);
+      toast.success('Document extraction queued for re-processing');
+      setTimeout(async () => {
+        try {
+          const docs = await api.documents.list(id!);
+          setDocuments(docs);
+        } catch {
+          // ignore
+        }
+        setRetryingDocId(null);
+      }, 1500);
+    } catch {
+      toast.error('Failed to retry document processing');
+      setRetryingDocId(null);
+    }
+  };
 
   const handleOpenQrModal = async () => {
     if (!id) return;
@@ -497,59 +519,179 @@ export default function ApplicationDetail() {
 
       {/* TAB 2: DOCUMENTS */}
       {activeTab === 'documents' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Cross-Document Consistency Engine Panel */}
+          <CrossDocumentConsistencyCard applicationId={application.id} />
+
           {documents.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
               <FileText className="h-10 w-10 text-gray-300 mx-auto mb-2" />
               <p className="text-sm text-gray-500">No documents uploaded for this application.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded">
-                        {getDocTypeLabel(doc.doc_type)}
-                      </span>
-                      <h4 className="text-sm font-semibold text-gray-900 mt-1">{doc.file_name}</h4>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-gray-900">
+                  Uploaded Institution Files ({documents.length})
+                </h3>
+                <span className="text-xs text-gray-500">
+                  Binary Magic-Bytes & Content Verified · Page-Level Provenance Tracked
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded">
+                          {getDocTypeLabel(doc.doc_type)}
+                        </span>
+                        <h4 className="text-sm font-semibold text-gray-900 mt-1">{doc.file_name}</h4>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        {doc.processing_status && (
+                          <Badge
+                            variant={
+                              doc.processing_status === 'VALIDATED'
+                                ? 'success'
+                                : doc.processing_status === 'EXTRACTED'
+                                ? 'info'
+                                : doc.processing_status === 'PROCESSING'
+                                ? 'warning'
+                                : doc.processing_status === 'FAILED'
+                                ? 'danger'
+                                : 'neutral'
+                            }
+                            size="sm"
+                          >
+                            Pipeline: {doc.processing_status}
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={
+                            doc.ocr_status === 'COMPLETE'
+                              ? 'success'
+                              : doc.ocr_status === 'PROCESSING'
+                              ? 'warning'
+                              : 'danger'
+                          }
+                          size="sm"
+                        >
+                          OCR: {doc.ocr_status}
+                        </Badge>
+                      </div>
                     </div>
-                    <Badge
-                      variant={
-                        doc.ocr_status === 'COMPLETE'
-                          ? 'success'
-                          : doc.ocr_status === 'PROCESSING'
-                          ? 'warning'
-                          : 'danger'
-                      }
-                    >
-                      OCR: {doc.ocr_status}
-                    </Badge>
-                  </div>
 
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <p>Size: {formatFileSize(doc.file_size)}</p>
-                    <p>Uploaded: {formatDateTime(doc.uploaded_at)}</p>
-                    <p className="font-mono text-[10px] text-gray-400 truncate">
-                      SHA256: {doc.file_hash || 'Pending computation'}
-                    </p>
-                  </div>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>Size: {formatFileSize(doc.file_size)}</p>
+                      <p>Uploaded: {formatDateTime(doc.uploaded_at)}</p>
+                      <p className="font-mono text-[10px] text-gray-400 truncate">
+                        SHA256: {doc.file_hash || 'Pending computation'}
+                      </p>
+                      {doc.retry_count && doc.retry_count > 0 ? (
+                        <p className="text-[11px] text-amber-600 font-medium">
+                          Retry attempts: {doc.retry_count}
+                        </p>
+                      ) : null}
+                    </div>
 
-                  {doc.ocr_data && (
-                    <details className="text-xs border-t border-gray-100 pt-2 text-gray-600">
-                      <summary className="cursor-pointer font-medium text-primary-600 hover:text-primary-800">
-                        View Extracted Fields
-                      </summary>
-                      <pre className="mt-2 bg-gray-50 p-2 rounded text-[11px] font-mono overflow-x-auto max-h-40">
-                        {JSON.stringify(doc.ocr_data, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              ))}
+                    {/* Non-fatal error banner */}
+                    {doc.error_message && (
+                      <div className="text-xs bg-amber-50 text-amber-900 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <b>Extraction Notice:</b> {doc.error_message}
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            AI/OCR failure is non-fatal and does not invalidate the application.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Extracted Claims with Page Provenance */}
+                    {doc.extracted_claims && doc.extracted_claims.length > 0 && (
+                      <div className="border-t border-gray-100 pt-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-800">
+                            Structured Claims ({doc.extracted_claims.length})
+                          </span>
+                          <span className="text-[10px] text-gray-400">Strict Pydantic Schema</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {doc.extracted_claims.map((claim, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs bg-gray-50 p-2 rounded border border-gray-100 flex items-start justify-between gap-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <span className="font-mono text-[10px] uppercase font-bold text-gray-600 block">
+                                  {claim.field_name.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-gray-900 text-xs font-medium block truncate">
+                                  {claim.value || (
+                                    <span className="italic text-gray-400">Not found / Missing</span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {claim.page_number && (
+                                  <span className="bg-white border border-gray-200 px-1.5 py-0.5 rounded text-[10px] text-gray-600 font-mono">
+                                    Pg {claim.page_number}
+                                  </span>
+                                )}
+                                <Badge
+                                  variant={
+                                    claim.status === 'VERIFIED'
+                                      ? 'success'
+                                      : claim.status === 'UNCERTAIN'
+                                      ? 'warning'
+                                      : 'neutral'
+                                  }
+                                  size="sm"
+                                >
+                                  {claim.confidence
+                                    ? `${Math.round(claim.confidence * 100)}%`
+                                    : claim.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Raw OCR snippet details */}
+                    {doc.ocr_data && (
+                      <details className="text-xs border-t border-gray-100 pt-2 text-gray-600">
+                        <summary className="cursor-pointer font-medium text-primary-600 hover:text-primary-800">
+                          View Raw Extracted JSON
+                        </summary>
+                        <pre className="mt-2 bg-gray-50 p-2 rounded text-[11px] font-mono overflow-x-auto max-h-36">
+                          {JSON.stringify(doc.ocr_data, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+
+                    {/* Actions: Retry Extraction Button */}
+                    <div className="pt-2 flex justify-end">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleRetryDocument(doc.id)}
+                        loading={retryingDocId === doc.id}
+                        className="text-xs"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Retry Extraction
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

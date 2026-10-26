@@ -1,0 +1,162 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aicte}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aicte_prod_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-aicte_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aicte -d aicte_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aicte-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aicte-network
+
+  minio:
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioprod_secret_2026}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aicte-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aicte}:${POSTGRES_PASSWORD:-aicte_prod_secret_2026}@postgres:5432/${POSTGRES_DB:-aicte_db}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioprod_secret_2026}
+      - MINIO_SECURE=false
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-aicte_super_secure_jwt_secret_key_2026}
+      - MOCK_API_BASE_URL=http://mock-apis:8001
+      - CORS_ORIGINS=["https://${DOMAIN:-localhost}","http://${DOMAIN:-localhost}","http://localhost:3000","https://localhost"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./rules:/rules:ro
+      - backend_uploads:/app/uploads
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    networks:
+      - aicte-network
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aicte}:${POSTGRES_PASSWORD:-aicte_prod_secret_2026}@postgres:5432/${POSTGRES_DB:-aicte_db}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioprod_secret_2026}
+      - MINIO_SECURE=false
+      - MOCK_API_BASE_URL=http://mock-apis:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./rules:/rules:ro
+      - backend_uploads:/app/uploads
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    networks:
+      - aicte-network
+
+  mock-apis:
+    build:
+      context: ./mock-apis
+      dockerfile: Dockerfile
+    restart: always
+    networks:
+      - aicte-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - VITE_API_BASE_URL=/api/v1
+      - VITE_APP_NAME=AICTE AI Validation Platform
+    networks:
+      - aicte-network
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl/live:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
+      - mock-apis
+    networks:
+      - aicte-network
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot:rw
+      - ./ssl:/etc/letsencrypt/live/${DOMAIN:-localhost}:rw
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+    networks:
+      - aicte-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  backend_uploads:
+  certbot_www:
+
+networks:
+  aicte-network:
+    driver: bridge

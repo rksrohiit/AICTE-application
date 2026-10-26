@@ -74,8 +74,10 @@ def process_document_ocr(self, document_id: str) -> dict:
         if doc is None:
             return {"error": f"Document {document_id} not found."}
 
-        # ── Mark as processing ────────────────────────────────────────────────
+        # ── Mark as processing (Idempotent start) ────────────────────────────
         doc.ocr_status = OCRStatus.PROCESSING
+        doc.processing_status = "PROCESSING"
+        doc.error_message = None
         doc.updated_at = datetime.now(timezone.utc)
         db.commit()
 
@@ -87,52 +89,83 @@ def process_document_ocr(self, document_id: str) -> dict:
 
         storage.download_file(doc.file_path, tmp_path)
 
-        # ── OCR pipeline ──────────────────────────────────────────────────────
+        # ── OCR & Structured Extraction with Provenance ───────────────────────
         ocr = OCRService()
-        text = ocr.extract_text(tmp_path)
-        doc_type_detected, classification_confidence = ocr.classify_document(text)
-        extracted_fields = ocr.extract_fields(text, doc_type_detected)
+        pages_dict, total_pages = ocr.extract_text_by_pages(tmp_path)
+        all_text = "\n".join(pages_dict.values())
+        doc_type_detected, classification_confidence = ocr.classify_document(all_text)
+        
+        # Extract structured verifiable claims with page provenance
+        structured_claims = ocr.extract_structured_claims(
+            pages_dict=pages_dict,
+            doc_type=doc_type_detected,
+            total_pages=total_pages,
+        )
         file_hash = ocr.compute_file_hash(tmp_path)
 
-        # ── Persist results ───────────────────────────────────────────────────
+        # Validate extraction result schema & page bounds
+        from app.schemas.extracted_claims import DocumentExtractionResult
+        extraction_res = DocumentExtractionResult(
+            document_id=str(doc.id),
+            doc_type=doc_type_detected,
+            total_pages=total_pages,
+            file_hash=file_hash,
+            claims=structured_claims,
+            extraction_status="SUCCESS",
+            processed_at=datetime.now(timezone.utc).isoformat(),
+        )
+        page_validation_errors = extraction_res.validate_page_references()
+
+        # ── Persist idempotent results ────────────────────────────────────────
         doc.extracted_data = {
-            "raw_text_length": len(text),
+            "raw_text_length": len(all_text),
+            "total_pages": total_pages,
             "detected_doc_type": doc_type_detected,
             "classification_confidence": classification_confidence,
-            "fields": extracted_fields,
+            "page_validation_errors": page_validation_errors,
+            "fields": ocr.extract_fields(all_text, doc_type_detected),
         }
+        doc.extracted_claims = [c.model_dump() for c in structured_claims]
         doc.file_hash = file_hash
         doc.ocr_status = OCRStatus.COMPLETE
+        doc.processing_status = "EXTRACTED"
+        doc.error_message = None
         doc.updated_at = datetime.now(timezone.utc)
 
         audit = AuditLog(
             actor="SYSTEM",
-            action="OCR_COMPLETE",
+            action="DOCUMENT_EXTRACTED",
             application_id=doc.application_id,
             document_id=doc.id,
             result="SUCCESS",
-            notes=f"Detected type: {doc_type_detected} (confidence: {classification_confidence:.2f})",
+            notes=(
+                f"Extracted {len(structured_claims)} claims across {total_pages} pages. "
+                f"Type: {doc_type_detected} (conf: {classification_confidence:.2f})"
+            ),
         )
         db.add(audit)
         db.commit()
 
         return {
             "document_id": document_id,
-            "status": "COMPLETE",
+            "status": "EXTRACTED",
+            "total_pages": total_pages,
+            "claims_count": len(structured_claims),
             "detected_doc_type": doc_type_detected,
-            "classification_confidence": classification_confidence,
             "file_hash": file_hash,
         }
 
     except Exception as exc:
         db.rollback()
-        # Update status to FAILED
+        # Non-fatal handling: record FAILED status on document without failing application
         try:
             doc_uuid = uuid.UUID(document_id)
             doc = db.get(Document, doc_uuid)
             if doc:
                 from app.models.document import OCRStatus as _OCRStatus
                 doc.ocr_status = _OCRStatus.FAILED
+                doc.processing_status = "FAILED"
+                doc.error_message = f"Processing exception: {str(exc)}"
                 doc.updated_at = datetime.now(timezone.utc)
                 db.commit()
         except Exception:

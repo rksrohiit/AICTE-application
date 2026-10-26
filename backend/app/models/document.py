@@ -8,7 +8,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -63,7 +63,13 @@ class Document(Base):
         nullable=False,
         default=OCRStatus.PENDING,
     )
+    processing_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UPLOADED"
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     extracted_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    extracted_claims: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=None)
     file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

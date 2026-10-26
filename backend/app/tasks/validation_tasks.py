@@ -171,6 +171,44 @@ def _evaluate_rule(
             "document_id": None,
         }
 
+    # ── CONSISTENCY / CROSS_DOCUMENT rules ────────────────────────────────────
+    if rule_category == "CONSISTENCY" or rule.get("check_type") == "cross_doc_field_match":
+        from app.services.cross_document import CrossDocumentConsistencyEngine
+
+        consistency_rep = CrossDocumentConsistencyEngine.analyze_documents(app.id, documents)
+        target_field = rule.get("field", "institution_name")
+        match_finding = next((f for f in consistency_rep.findings if f.field == target_field), None)
+
+        if match_finding:
+            if match_finding.status == "CONSISTENT":
+                return {
+                    "status": FindingStatus.PASS,
+                    "message": match_finding.explanation,
+                    "evidence": f"Similarity score: {int(match_finding.similarity_score * 100)}% across {len(match_finding.evidence)} source documents.",
+                    "document_id": match_finding.evidence[0].document_id if match_finding.evidence else None,
+                }
+            elif match_finding.status == "NEEDS_REVIEW":
+                return {
+                    "status": FindingStatus.WARN,
+                    "message": match_finding.explanation,
+                    "evidence": f"Advisory: {match_finding.resolution_guidance}",
+                    "document_id": match_finding.evidence[0].document_id if match_finding.evidence else None,
+                }
+            else:
+                return {
+                    "status": FindingStatus.FAIL,
+                    "message": match_finding.explanation,
+                    "evidence": f"Discrepancy: {match_finding.resolution_guidance}",
+                    "document_id": match_finding.evidence[0].document_id if match_finding.evidence else None,
+                }
+
+        return {
+            "status": FindingStatus.SKIPPED,
+            "message": f"Insufficient document claims uploaded to evaluate cross-document consistency for '{target_field}'.",
+            "evidence": None,
+            "document_id": None,
+        }
+
     # ── Default: skip unknown rule categories ─────────────────────────────────
     return {
         "status": FindingStatus.SKIPPED,
