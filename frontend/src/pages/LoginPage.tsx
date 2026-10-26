@@ -15,8 +15,8 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 const DEMO_CREDENTIALS = {
-  institution: { email: 'institution@demo.com', password: 'Demo@1234' },
-  officer: { email: 'officer@demo.com', password: 'Demo@1234' },
+  institution: { email: 'institution@demo.com', password: 'password123' },
+  officer: { email: 'officer@aicte.gov.in', password: 'password123' },
 };
 
 export default function LoginPage() {
@@ -55,10 +55,11 @@ export default function LoginPage() {
     }
   };
 
-  const autofill = (type: 'institution' | 'officer') => {
+  const autofill = async (type: 'institution' | 'officer') => {
     const creds = DEMO_CREDENTIALS[type];
-    setValue('email', creds.email);
-    setValue('password', creds.password);
+    setValue('email', creds.email, { shouldValidate: true });
+    setValue('password', creds.password, { shouldValidate: true });
+    await onSubmit(creds);
   };
 
   return (
