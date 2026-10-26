@@ -24,7 +24,6 @@ import os
 import sys
 import json
 import uuid
-import hashlib
 import hmac
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -61,7 +60,9 @@ DATABASE_URL = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").re
 
 try:
     import psycopg2
-    from psycopg2.extras import Json, RealDictCursor
+    from psycopg2.extras import RealDictCursor
+
+    from app.core.security import hash_password, RealDictCursor
 except ImportError:
     print(
         "ERROR: psycopg2 not installed. Run: pip install psycopg2-binary",
@@ -70,13 +71,10 @@ except ImportError:
     sys.exit(1)
 
 
-# ─── Password hashing (bcrypt-style via hashlib for portability) ──────────────
+# ─── Password hashing ─────────────────────────────────────────────────────────
 def _hash_password(plain: str) -> str:
-    """Simple SHA-256 based hash with salt for demo purposes.
-    NOTE: Production code uses bcrypt via passlib — this is demo-only.
-    """
-    salt = "aicte_demo_salt_2024"
-    return hashlib.sha256(f"{salt}{plain}".encode()).hexdigest()
+    """Hash demo credentials with the same bcrypt strategy as login."""
+    return hash_password(plain)
 
 
 DEMO_PASSWORD_HASH = _hash_password("Demo@1234")
@@ -93,8 +91,6 @@ DEMO_USERS = [
         "role": "INSTITUTION",
         "hashed_password": DEMO_PASSWORD_HASH,
         "is_active": True,
-        "is_verified": True,
-        "phone": "9876543210",
         "created_at": datetime.utcnow(),
     },
     {
@@ -104,8 +100,6 @@ DEMO_USERS = [
         "role": "SCRUTINY_OFFICER",
         "hashed_password": DEMO_PASSWORD_HASH,
         "is_active": True,
-        "is_verified": True,
-        "phone": "9876543211",
         "created_at": datetime.utcnow(),
     },
     {
@@ -115,8 +109,6 @@ DEMO_USERS = [
         "role": "SENIOR_OFFICER",
         "hashed_password": DEMO_PASSWORD_HASH,
         "is_active": True,
-        "is_verified": True,
-        "phone": "9876543212",
         "created_at": datetime.utcnow(),
     },
 ]
@@ -396,19 +388,19 @@ def _execute(conn, sql: str, params: tuple = ()):
 
 def _upsert_user(conn, user: dict):
     sql = """
-        INSERT INTO users (id, email, full_name, role, hashed_password, is_active, is_verified, phone, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO users (id, email, full_name, role, hashed_password, is_active, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (email) DO UPDATE
           SET full_name = EXCLUDED.full_name,
               hashed_password = EXCLUDED.hashed_password,
               role = EXCLUDED.role,
               is_active = EXCLUDED.is_active,
-              is_verified = EXCLUDED.is_verified;
+              updated_at = EXCLUDED.updated_at;
     """
+    now = datetime.utcnow()
     _execute(conn, sql, (
         user["id"], user["email"], user["full_name"], user["role"],
-        user["hashed_password"], user["is_active"], user["is_verified"],
-        user["phone"], user["created_at"],
+        user["hashed_password"], user["is_active"], user["created_at"], now,
     ))
 
 
