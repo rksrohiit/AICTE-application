@@ -22,7 +22,7 @@ if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "localhost" ]; then
     echo "[+] Domain specified: $DOMAIN"
     echo "[+] Attempting to obtain official Let's Encrypt certificate for $DOMAIN..."
 
-    # Ensure port 80 is free for certbot standalone if nginx is not yet running
+    # Try Certbot directly or via Docker
     if command -v certbot >/dev/null 2>&1; then
         certbot certonly --standalone \
             --preferred-challenges http \
@@ -32,8 +32,28 @@ if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "localhost" ]; then
             -d "$DOMAIN" || true
         
         if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            cp "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" "$SSL_DIR/fullchain.pem"
-            cp "/etc/letsencrypt/live/$DOMAIN/privkey.pem" "$SSL_DIR/privkey.pem"
+            cp -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" "$SSL_DIR/fullchain.pem"
+            cp -f "/etc/letsencrypt/live/$DOMAIN/privkey.pem" "$SSL_DIR/privkey.pem"
+            echo "[✓] Official Let's Encrypt certificate acquired and installed in $SSL_DIR!"
+            exit 0
+        fi
+    elif command -v docker >/dev/null 2>&1; then
+        echo "[+] Requesting verified Let's Encrypt SSL certificate for $DOMAIN via Docker Certbot..."
+        mkdir -p "$SSL_DIR/letsencrypt"
+        docker run --rm -p 80:80 \
+            -v "$(pwd)/$SSL_DIR/letsencrypt:/etc/letsencrypt" \
+            certbot/certbot certonly \
+            --standalone \
+            --preferred-challenges http \
+            --agree-tos \
+            --register-unsafely-without-email \
+            --non-interactive \
+            -d "$DOMAIN" || true
+        
+        CERT_LIVE="$SSL_DIR/letsencrypt/live/$DOMAIN"
+        if [ -f "$CERT_LIVE/fullchain.pem" ]; then
+            cp -f "$CERT_LIVE/fullchain.pem" "$SSL_DIR/fullchain.pem"
+            cp -f "$CERT_LIVE/privkey.pem" "$SSL_DIR/privkey.pem"
             echo "[✓] Official Let's Encrypt certificate acquired and installed in $SSL_DIR!"
             exit 0
         fi

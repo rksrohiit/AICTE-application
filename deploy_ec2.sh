@@ -24,12 +24,18 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# 2. Detect Public IP
+# 2. Detect Public IP & Auto-Configure Domain
 PUBLIC_IP=$(curl -s https://checkip.amazonaws.com || curl -s https://ifconfig.me || echo "3.26.145.164")
+PUBLIC_IP=$(echo "$PUBLIC_IP" | tr -d '[:space:]')
 echo "[+] Detected EC2 Public IP: $PUBLIC_IP"
+
 if [ -z "$DOMAIN" ]; then
-    DOMAIN="$PUBLIC_IP"
-    echo "[+] No custom domain specified. Using Public IP: $DOMAIN"
+    # Automatically use sslip.io to provide a valid, public FQDN domain that Let's Encrypt certifies!
+    DASHED_IP="${PUBLIC_IP//./-}"
+    DOMAIN="${DASHED_IP}.sslip.io"
+    echo "[+] Auto-configured public domain for Let's Encrypt SSL: $DOMAIN"
+else
+    echo "[+] Using specified domain: $DOMAIN"
 fi
 
 # 3. Create Swap Space (Crucial for smooth Docker builds on t2.micro / t3.micro)
@@ -143,6 +149,9 @@ MINIO_ROOT_PASSWORD=$MINIO_PASSWORD
 JWT_SECRET_KEY=$JWT_SECRET
 EOF
     echo "[✓] Created .env configuration."
+else
+    # Update DOMAIN in existing .env
+    sed -i "s/^DOMAIN=.*/DOMAIN=$DOMAIN/" .env || true
 fi
 
 # 10. Build and launch production Docker Compose stack
