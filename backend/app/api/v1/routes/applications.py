@@ -329,6 +329,7 @@ async def get_validation_report(
             for alert in alerts
         ],
         run=ValidationRunResponse.model_validate(run),
+        validation_run=ValidationRunResponse.model_validate(run),
         findings=[ValidationFindingResponse.model_validate(f) for f in findings],
         summary=summary,
         anomalies=[AnomalyFlagResponse.model_validate(anomaly) for anomaly in anomalies],
@@ -408,6 +409,80 @@ async def get_application_audit(
     )
     logs = result.scalars().all()
     return [AuditLogResponse.model_validate(log) for log in logs]
+
+
+@router.post(
+    "/{app_id}/alerts/{alert_id}/resolve",
+    summary="Resolve an application alert",
+    dependencies=[Depends(require_officer)],
+)
+async def resolve_application_alert(
+    app_id: uuid.UUID,
+    alert_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    await _get_application_or_404(app_id, db, current_user)
+    result = await db.execute(
+        select(ApplicationAlert).where(
+            ApplicationAlert.id == alert_id,
+            ApplicationAlert.application_id == app_id,
+        )
+    )
+    alert = result.scalar_one_or_none()
+    if alert is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found.")
+    alert.is_resolved = True
+    alert.resolved_at = datetime.now(timezone.utc)
+    await append_chained_audit_log(
+        db=db,
+        actor=current_user.email,
+        action="ALERT_RESOLVED",
+        application_id=app_id,
+        result="SUCCESS",
+        notes=f"Resolved alert {alert.id}: {alert.alert_type}",
+    )
+    return {"alert_id": str(alert.id), "is_resolved": True, "resolved_by": current_user.email}
+
+
+@router.post(
+    "/{app_id}/anomalies/{anomaly_id}/review",
+    summary="Record an officer review decision for an anomaly",
+    dependencies=[Depends(require_officer)],
+)
+async def review_anomaly(
+    app_id: uuid.UUID,
+    anomaly_id: uuid.UUID,
+    payload: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    await _get_application_or_404(app_id, db, current_user)
+    result = await db.execute(
+        select(AnomalyFlag).where(
+            AnomalyFlag.id == anomaly_id,
+            AnomalyFlag.application_id == app_id,
+        )
+    )
+    anomaly = result.scalar_one_or_none()
+    if anomaly is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Anomaly not found.")
+    anomaly.is_reviewed = True
+    anomaly.reviewer_notes = str(payload.get("notes", "")).strip() or None
+    await append_chained_audit_log(
+        db=db,
+        actor=current_user.email,
+        action="ANOMALY_REVIEWED",
+        application_id=app_id,
+        result=str(payload.get("decision", "REVIEWED")).upper(),
+        notes=anomaly.reviewer_notes or "Anomaly reviewed without notes.",
+    )
+    return {
+        "anomaly_id": str(anomaly.id),
+        "is_reviewed": True,
+        "reviewer": current_user.email,
+        "notes": anomaly.reviewer_notes,
+    }
 
 
 @router.get(

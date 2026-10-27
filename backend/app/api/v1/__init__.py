@@ -11,6 +11,7 @@ from app.api.v1.routes.metrics import router as metrics_router
 from app.api.v1.routes.infrastructure import router as infrastructure_router
 from app.api.v1.routes.public_verify import router as public_verify_router
 from app.api.v1.routes.campus_geo import router as campus_geo_router
+from app.api.v1.routes.checklist import router as checklist_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -21,3 +22,4 @@ api_router.include_router(metrics_router)
 api_router.include_router(infrastructure_router)
 api_router.include_router(public_verify_router)
 api_router.include_router(campus_geo_router)
+api_router.include_router(checklist_router)

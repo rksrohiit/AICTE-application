@@ -57,6 +57,7 @@ class ValidationReportResponse(BaseModel):
     documents: List[DocumentResponse]
     alerts: List[Dict[str, Any]]
     run: ValidationRunResponse
+    validation_run: ValidationRunResponse | None = None
     findings: List[ValidationFindingResponse]
     summary: Dict[str, Any]
     anomalies: List[AnomalyFlagResponse] = []

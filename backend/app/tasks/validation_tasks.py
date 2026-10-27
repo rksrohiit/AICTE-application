@@ -251,7 +251,9 @@ def run_validation(self, application_id: str) -> Dict[str, Any]:
         total_evaluatable = 0
 
         for rule in rules:
-            result = _evaluate_rule(rule, app, documents, db)
+            from app.services.checklist import evaluate_rule
+
+            result = evaluate_rule(rule, app, documents)
 
             severity_str: str = rule.get("severity", "MEDIUM").upper()
             try:

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Application, ApplicationListResponse, ApplicationAlert, AuditLog, AuditChainReport, CampusPlotSummary, CampusPlotVerificationResult, CampusCoordinates, Document, InfrastructureScrutinyResponse, PublicVerificationData, ValidationReport, User, DocType } from './types';
+import type { Application, ApplicationListResponse, ApplicationAlert, AuditLog, AuditChainReport, CampusPlotSummary, CampusPlotVerificationResult, CampusCoordinates, Document, InfrastructureScrutinyResponse, PublicVerificationData, ValidationReport, User, DocType, ChecklistResponse, WorkflowStatus } from './types';
 
 const client = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1' });
 client.interceptors.request.use((config) => {
@@ -20,7 +20,11 @@ export const api = {
     create: async (payload: { institution_name: string; application_type: string; academic_year: string; programmes?: unknown[] }) => (await client.post<Application>('/applications', { ...payload, programmes: payload.programmes ?? [] })).data,
     validate: async (id: string) => (await client.post(`/applications/${id}/validate`)).data,
     getValidationReport: async (id: string) => (await client.get<ValidationReport>(`/applications/${id}/validation-report`)).data,
+    getChecklist: async (id: string) => (await client.get<ChecklistResponse>(`/applications/${id}/checklist`)).data,
+    getWorkflowStatus: async (id: string) => (await client.get<WorkflowStatus>(`/applications/${id}/workflow-status`)).data,
     getAlerts: async (id: string) => (await client.get<ApplicationAlert[]>(`/applications/${id}/alerts`)).data,
+    resolveAlert: async (id: string, alertId: string) => (await client.post(`/applications/${id}/alerts/${alertId}/resolve`)).data,
+    reviewAnomaly: async (id: string, anomalyId: string, notes: string, decision = 'REVIEWED') => (await client.post(`/applications/${id}/anomalies/${anomalyId}/review`, { notes, decision })).data,
     getAudit: async (id: string) => (await client.get<AuditLog[]>(`/applications/${id}/audit`)).data,
     verifyAuditChain: async (id: string) => (await client.get<AuditChainReport>(`/applications/${id}/audit/verify-chain`)).data,
     takeAction: async (id: string, action: string, notes: string) => (await client.post(`/applications/${id}/actions`, { action, notes })).data,

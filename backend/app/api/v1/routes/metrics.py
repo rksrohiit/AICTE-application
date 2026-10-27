@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -60,6 +61,22 @@ async def get_metrics_summary(
         .group_by(AnomalyFlag.severity)
     )
     anomaly_counts: Dict[str, int] = {row.severity: row.cnt for row in anomaly_rows}
+    unresolved_anomalies = await db.scalar(
+        select(func.count(AnomalyFlag.id)).where(AnomalyFlag.is_reviewed.is_(False))
+    ) or 0
+    pending_review = await db.scalar(
+        select(func.count(Application.id)).where(
+            Application.status.in_(
+                [
+                    ApplicationStatus.SUBMITTED,
+                    ApplicationStatus.VALIDATION_COMPLETE,
+                    ApplicationStatus.UNDER_REVIEW,
+                    ApplicationStatus.ESCALATED,
+                    ApplicationStatus.SENT_FOR_RECTIFICATION,
+                ]
+            )
+        )
+    ) or 0
 
     # ── Validation score stats ──────────────────────────────────────────────
     score_row = await db.execute(
@@ -81,4 +98,8 @@ async def get_metrics_summary(
             "minimum": score_stats.min_score or 0,
             "maximum": score_stats.max_score or 0,
         },
+        "pending_review": pending_review,
+        "anomalies_flagged": unresolved_anomalies,
+        "verified_today": 0,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }

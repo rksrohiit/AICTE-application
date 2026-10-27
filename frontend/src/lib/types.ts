@@ -96,6 +96,32 @@ export interface ValidationReport {
   verifications?: VerificationResult[];
   summary?: Record<string, unknown>;
 }
+export interface ChecklistItem {
+  rule_id: string;
+  rule_name: string;
+  category: string;
+  severity: string;
+  description?: string | null;
+  status: FindingStatus;
+  message: string;
+  evidence?: string | null;
+  document_id?: string | null;
+}
+export interface ChecklistResponse {
+  application_id: string;
+  application_type: string;
+  rules_version: string;
+  items: ChecklistItem[];
+  counts: Record<string, number>;
+  completion_percent: number;
+}
+export interface WorkflowStatus {
+  application_id: string;
+  application_status: ApplicationStatus;
+  documents: { total: number; ocr: Record<string, number> };
+  is_processing: boolean;
+  last_updated: string;
+}
 export interface AnomalyFlag {
   id: string;
   check_type: string;
