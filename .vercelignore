@@ -1,0 +1,9 @@
+backend/
+mock-apis/
+rules/
+scripts/
+nginx/
+*.sh
+*.bat
+*.ps1
+docker-compose*.yml
