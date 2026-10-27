@@ -11,6 +11,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { realtimeChannel } from '@/lib/demoStore';
 import { formatDate } from '@/lib/utils';
 import { DOC_TYPES_ALL } from '@/lib/constants';
 import { PageSpinner } from '@/components/ui/Spinner';
@@ -85,7 +86,21 @@ export default function ApplicationStatus() {
       // ignore
     }
 
+    const handleBroadcast = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.application_id !== id) return;
+      if (data.type === 'RECTIFICATION_REQUESTED') {
+        toast.error(`⚠️ Rectification Notice: ${data.message}`, { duration: 8000 });
+        queryClient.invalidateQueries({ queryKey: ['application-report', id] });
+      } else if (data.type === 'APPLICATION_APPROVED' || data.type === 'APPLICATION_STATUS_UPDATED') {
+        toast.success(`🎉 Live Update: ${data.message}`, { duration: 8000 });
+        queryClient.invalidateQueries({ queryKey: ['application-report', id] });
+      }
+    };
+    realtimeChannel?.addEventListener('message', handleBroadcast);
+
     return () => {
+      realtimeChannel?.removeEventListener('message', handleBroadcast);
       if (ws) {
         try {
           ws.close();

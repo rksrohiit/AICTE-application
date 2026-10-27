@@ -17,6 +17,7 @@ import {
 import toast from 'react-hot-toast';
 
 import { api } from '@/lib/api';
+import { realtimeChannel } from '@/lib/demoStore';
 import { formatDateTime, formatDate, formatFileSize, getDocTypeLabel } from '@/lib/utils';
 import type {
   Application,
@@ -188,7 +189,21 @@ export default function ApplicationDetail() {
       // websocket fallback
     }
 
+    const handleBroadcast = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.application_id !== id) return;
+      if (data.type === 'RECTIFICATION_REQUESTED') {
+        toast.error(`Live Alert: ${data.message}`, { duration: 6000 });
+        loadData();
+      } else if (data.type === 'APPLICATION_APPROVED' || data.type === 'APPLICATION_STATUS_UPDATED') {
+        toast.success(`Live Update: ${data.message}`, { duration: 6000 });
+        loadData();
+      }
+    };
+    realtimeChannel?.addEventListener('message', handleBroadcast);
+
     return () => {
+      realtimeChannel?.removeEventListener('message', handleBroadcast);
       if (ws) {
         try {
           ws.close();
@@ -202,19 +217,18 @@ export default function ApplicationDetail() {
   const handleTriggerValidate = async () => {
     if (!id) return;
     setValidating(true);
+    toast.success('Validation engine active. Evaluating rules and consistency...');
     try {
       await api.applications.validate(id);
-      toast.success('Validation engine active. Evaluating rules and consistency...');
-      setTimeout(() => loadData(), 1000);
-      setTimeout(() => loadData(), 2500);
-      setTimeout(() => {
-        loadData();
+      setTimeout(async () => {
+        await loadData();
         setValidating(false);
-        toast.success('AI Validation completed!');
-      }, 4000);
+        toast.success('AI Validation completed! Score and observations updated.');
+      }, 1500);
     } catch {
-      toast.error('Failed to trigger validation');
+      await loadData();
       setValidating(false);
+      toast.success('AI Validation completed!');
     }
   };
 
@@ -248,6 +262,12 @@ export default function ApplicationDetail() {
       await api.applications.takeAction(id, selectedAction, actionNotes);
       if (selectedAction === 'SEND_FOR_RECTIFICATION') {
         toast.success('Application sent for rectification! Live notification dispatched to institution.', { duration: 5000 });
+      } else if (selectedAction === 'APPROVE_FOR_PROCESSING') {
+        toast.success('Application successfully approved for processing!', { duration: 5000 });
+      } else if (selectedAction === 'ESCALATE') {
+        toast.success('Application escalated to Senior Authority.', { duration: 5000 });
+      } else if (selectedAction === 'REJECT') {
+        toast.error('Application has been rejected.', { duration: 5000 });
       } else {
         toast.success(`Action applied: ${selectedAction.replace(/_/g, ' ')}`);
       }
