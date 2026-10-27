@@ -148,7 +148,7 @@ MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=$MINIO_PASSWORD
 JWT_SECRET_KEY=$JWT_SECRET
 EOF
-    echo "[✓] Created .env configuration."
+    echo "[✓] Created .env configuration."\n    # Copy .env into backend folder for docker-compose.yml compatibility\n    mkdir -p backend\n    cp .env backend/.env || true
 else
     # Update DOMAIN in existing .env
     sed -i "s/^DOMAIN=.*/DOMAIN=$DOMAIN/" .env || true
