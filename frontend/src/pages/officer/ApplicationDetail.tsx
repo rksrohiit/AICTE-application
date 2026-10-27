@@ -27,6 +27,8 @@ import type {
   OfficerAction,
   FindingSeverity,
   PublicVerificationData,
+  ChecklistResponse,
+  WorkflowStatus,
 } from '@/lib/types';
 
 import { Button } from '@/components/ui/Button';
@@ -45,6 +47,7 @@ import { CampusPlotBoundaryPanel } from '@/components/shared/CampusPlotBoundaryP
 type TabKey =
   | 'overview'
   | 'documents'
+  | 'checklist'
   | 'infrastructure'
   | 'findings'
   | 'anomalies'
@@ -61,6 +64,8 @@ export default function ApplicationDetail() {
   const [alerts, setAlerts] = useState<ApplicationAlert[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistResponse | null>(null);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
 
@@ -130,6 +135,16 @@ export default function ApplicationDetail() {
       } catch {
         // No report yet
       }
+      try {
+        setChecklist(await api.applications.getChecklist(id));
+      } catch {
+        setChecklist(null);
+      }
+      try {
+        setWorkflowStatus(await api.applications.getWorkflowStatus(id));
+      } catch {
+        setWorkflowStatus(null);
+      }
     } catch {
       toast.error('Failed to load application details');
     } finally {
@@ -143,16 +158,39 @@ export default function ApplicationDetail() {
 
   useEffect(() => {
     if (!application) return;
-    const processing =
+    const processing = workflowStatus?.is_processing ?? (
       application.status === 'UNDER_VALIDATION' ||
-      documents.some((document) => document.ocr_status === 'PENDING' || document.ocr_status === 'PROCESSING');
+      documents.some((document) => document.ocr_status === 'PENDING' || document.ocr_status === 'PROCESSING')
+    );
     if (!processing) return;
 
     const interval = window.setInterval(() => {
       void loadData();
     }, 4000);
     return () => window.clearInterval(interval);
-  }, [application, documents, loadData]);
+  }, [application, documents, workflowStatus, loadData]);
+
+  const handleResolveAlert = async (alertId: string) => {
+    if (!id) return;
+    try {
+      await api.applications.resolveAlert(id, alertId);
+      toast.success('Alert resolved and recorded in the audit trail');
+      await loadData();
+    } catch {
+      toast.error('Failed to resolve alert');
+    }
+  };
+
+  const handleReviewAnomaly = async (anomalyId: string) => {
+    if (!id) return;
+    try {
+      await api.applications.reviewAnomaly(id, anomalyId, 'Reviewed by officer');
+      toast.success('Anomaly review recorded');
+      await loadData();
+    } catch {
+      toast.error('Failed to record anomaly review');
+    }
+  };
 
   const handleTriggerValidate = async () => {
     if (!id) return;
@@ -239,6 +277,7 @@ export default function ApplicationDetail() {
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'documents', label: 'Documents', count: documents.length },
+    { key: 'checklist', label: 'Checklist', count: checklist?.items.length },
     { key: 'infrastructure', label: '🏛️ Infrastructure & Lab Scrutiny' },
     { key: 'findings', label: 'Findings', count: findingsList.length },
     { key: 'anomalies', label: 'Anomalies', count: anomaliesList.length },
@@ -368,11 +407,55 @@ export default function ApplicationDetail() {
               }`}
             >
               <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5 text-current" />
-              <div>
+              <div className="flex-1">
                 <span className="font-semibold">[{al.alert_type}]</span> {al.message}
               </div>
+              {!al.is_resolved && (
+                <Button variant="secondary" size="sm" onClick={() => handleResolveAlert(al.id)}>
+                  Resolve
+                </Button>
+              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {activeTab === 'checklist' && (
+        <div className="space-y-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className="font-semibold text-gray-900">Configurable compliance checklist</h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Rules version {checklist?.rules_version ?? '—'} · Results are decision-support evidence for officer review.
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-primary-700">
+                {checklist?.completion_percent ?? 0}% evaluated
+              </span>
+            </div>
+            {!checklist ? (
+              <p className="text-sm text-gray-500">Checklist is not available yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {checklist.items.map((item) => (
+                  <div key={item.rule_id} className="border border-gray-100 rounded-lg p-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-gray-400">{item.rule_id}</span>
+                        <span className="font-medium text-sm text-gray-800">{item.rule_name}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{item.message}</p>
+                      {item.evidence && <p className="text-xs text-gray-400 mt-1">Evidence: {item.evidence}</p>}
+                    </div>
+                    <Badge variant={item.status === 'PASS' ? 'success' : item.status === 'FAIL' ? 'danger' : item.status === 'WARN' ? 'warning' : 'neutral'}>
+                      {item.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -648,7 +731,14 @@ export default function ApplicationDetail() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {anomaliesList.map((anom) => (
-                <AnomalyCard key={anom.id} anomaly={anom} />
+                <div key={anom.id} className="space-y-2">
+                  <AnomalyCard anomaly={anom} />
+                  {!anom.is_reviewed && (
+                    <Button variant="secondary" size="sm" onClick={() => handleReviewAnomaly(anom.id)}>
+                      Mark reviewed
+                    </Button>
+                  )}
+                </div>
               ))}
             </div>
           )}
