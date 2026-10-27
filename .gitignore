@@ -19,7 +19,7 @@ wheels/
 pip-wheel-metadata/
 share/python-wheels/
 .installed.cfg
-lib/
+# lib/
 lib64/
 MANIFEST
 *.manifest
@@ -28,7 +28,7 @@ MANIFEST
 develop-eggs/
 downloads/
 .eggs/
-.lib/
+.# lib/
 
 # Virtual environments
 .venv/
