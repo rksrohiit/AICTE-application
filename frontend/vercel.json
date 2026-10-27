@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "http://3.26.145.164/api/$1"
+      "destination": "https://3-26-145-164.nip.io/api/$1"
     },
     {
       "source": "/(.*)",
