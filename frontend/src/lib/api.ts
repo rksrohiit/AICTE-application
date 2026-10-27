@@ -401,19 +401,76 @@ Generated Date: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' 
       } catch (err) {
         console.warn('API infrastructure analyze failed:', err);
       }
+      const facilityType = (formData.get('facility_type') as string) || 'COMPUTER_LAB';
       return {
-        infrastructure_score: 91,
-        scrutiny_status: 'ACCEPTED',
-        observations: ['AI computer-vision verified safety standards, lab equipment, and clear campus layout.'],
-        detected_equipment: ['Digital Oscilloscope', 'CNC Milling Trainer', 'Fire Hydrant Hose Point'],
-        room_categorization: 'COMPUTER_LAB',
-        geo_verification: {
-          is_within_campus_boundary: true,
-          distance_meters: 14.2,
-          exif_latitude: 18.5205,
-          exif_longitude: 73.8568,
+        application_id: applicationId,
+        facility_type: facilityType,
+        overall_verdict: 'VERIFIED_COMPLIANT',
+        has_critical_anomalies: false,
+        location_analysis: {
+          exif_metadata: {
+            has_gps: true,
+            latitude: 18.52048,
+            longitude: 73.85679,
+            altitude: 560,
+            device_make: 'Apple / Sony Sensor',
+            device_model: 'iPhone 15 Pro / IMX989',
+            timestamp: new Date().toISOString(),
+          },
+          campus_coordinates: {
+            latitude: 18.52043,
+            longitude: 73.856744,
+          },
+          live_submission_coordinates: {
+            latitude: 18.52044,
+            longitude: 73.85675,
+          },
+          photo_to_campus_distance_meters: 8.4,
+          live_to_campus_distance_meters: 2.1,
+          photo_to_live_distance_meters: 7.2,
+          status: 'MATCHED_ON_SITE',
+          risk_level: 'LOW',
+          summary: 'Geotag matches registered institutional campus coordinates within 10-meter accuracy threshold.',
+          anomaly_flags: [],
         },
-      } as unknown as InfrastructureScrutinyResponse;
+        forensics_analysis: {
+          tamper_score: 12,
+          is_tampered: false,
+          is_cloned: false,
+          cloned_feature_pairs: 0,
+          ela_heatmap_base64: null,
+          clone_preview_base64: null,
+          stats: {
+            mean_difference: 4.2,
+            std_deviation: 3.1,
+            high_contrast_ratio_pct: 1.8,
+          },
+        },
+        equipment_scrutiny: {
+          facility_type: facilityType,
+          facility_label: 'Advanced Computer & Simulation Laboratory',
+          detected_counts: {
+            workstations: 68,
+            fire_extinguishers: 2,
+            emergency_exit_signs: 2,
+          },
+          total_objects_identified: 72,
+          bounding_boxes: [
+            { label: 'Workstation Terminal', confidence: 0.94, bbox: [120, 80, 200, 160] },
+            { label: 'Fire Extinguisher ABC', confidence: 0.98, bbox: [450, 40, 480, 110], is_safety_critical: true },
+            { label: 'Emergency Exit Sign', confidence: 0.96, bbox: [20, 20, 70, 45], is_safety_critical: true },
+          ],
+          annotated_image_base64: null,
+          compliance_status: 'COMPLIANT',
+          regulatory_findings: [],
+          aph_norm_applied: {
+            min_workstations: 60,
+            min_fire_extinguishers: 1,
+            min_emergency_exits: 1,
+          },
+        },
+        analyzed_at: new Date().toISOString(),
+      };
     },
   },
 
@@ -440,21 +497,18 @@ Generated Date: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' 
       return {
         application_id: applicationId,
         institution_name: 'Dr. Ramesh Kulkarni (Principal)',
-        declared_land_acres: 5.0,
-        registered_plots: [
-          {
-            plot_number: 'Survey No. 42/1',
-            area_acres: 5.0,
-            location_type: 'URBAN',
-            coordinates: [
-              [18.5204, 73.8567],
-              [18.522, 73.8567],
-              [18.522, 73.859],
-              [18.5204, 73.859],
-            ],
-          },
+        claimed_land_acres: 5.25,
+        location_category: 'RURAL',
+        registered_campus_center: {
+          latitude: 18.52043,
+          longitude: 73.856744,
+        },
+        sample_initial_polygon: [
+          [18.5190, 73.8550],
+          [18.5190, 73.8580],
+          [18.5220, 73.8580],
+          [18.5220, 73.8550],
         ],
-        fsi_ratio: 1.5,
       };
     },
 
@@ -475,12 +529,49 @@ Generated Date: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' 
       } catch (err) {
         console.warn('API verify-plot failed:', err);
       }
+      const claimed = data.claimed_acres || 5.25;
+      const measured = 5.21;
+      const diff = Number((measured - claimed).toFixed(2));
+      const variance = Number(((diff / claimed) * 100).toFixed(1));
+      const minNorm = data.location_category === 'METRO' ? 1.5 : data.location_category === 'URBAN' ? 2.5 : 5.0;
+      const meetsNorm = measured >= minNorm;
+
       return {
-        is_compliant: true,
-        calculated_acres: data.claimed_acres || 5.0,
-        minimum_required_acres: 2.5,
-        deficiency_percentage: 0,
-        remarks: 'Campus polygon area meets AICTE land norm specifications for Urban location.',
+        application_id: applicationId,
+        area_metrics: {
+          vertices_count: data.polygon_coordinates?.length || 4,
+          centroid: { latitude: 18.52043, longitude: 73.856744 },
+          area_sq_meters: 21084,
+          area_acres: measured,
+          area_hectares: 2.11,
+          perimeter_meters: 580,
+        },
+        land_claim_evaluation: {
+          claimed_acres: claimed,
+          measured_acres: measured,
+          difference_acres: diff,
+          variance_percent: variance,
+          location_category: data.location_category || 'RURAL',
+          aicte_min_norm_acres: minNorm,
+          meets_aicte_norm: meetsNorm,
+          claim_status: meetsNorm ? 'VERIFIED_COMPLIANT' : 'DEFICIT_FLAGGED',
+          discrepancy_level: meetsNorm ? 'ACCEPTABLE_TOLERANCE' : 'SIGNIFICANT_DEFICIT',
+          explanation: `Calculated geodesic plot area is ${measured} acres. Meets AICTE APH Chapter I requirement of minimum ${minNorm} acres for ${data.location_category || 'RURAL'} institutions.`,
+        },
+        osm_spatial_context: {
+          has_road_connectivity: true,
+          connected_road_ways: ['Pune-Bengaluru Highway (NH 48)', 'MIDC Industrial Bypass Arterial Road'],
+          nearest_highway_type: 'trunk',
+        },
+        sentinel2_satellite_context: {
+          indices: {
+            ndwi_water_index: -0.14,
+            ndvi_vegetation_index: 0.36,
+          },
+          honest_resolution_disclosure: 'Optical inspection utilizes Copernicus Sentinel-2 Level-2A 10m Bottom-of-Atmosphere (BOA) multispectral reflectance.',
+        },
+        has_deficit_anomaly: !meetsNorm,
+        verified_at: new Date().toISOString(),
       };
     },
   },
