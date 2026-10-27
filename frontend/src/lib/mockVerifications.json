@@ -1,0 +1,62 @@
+[
+  {
+    "id": "88b7fc32-ce06-46d3-852d-49bf64c7dc0d",
+    "document_id": "75702a57-787b-4ebb-be5c-7cf5ef998af3",
+    "source_name": "State Judicial Registry",
+    "status": "VERIFIED",
+    "source_response": "{\"status\": \"VERIFIED\", \"source\": \"DigiLocker / State Judicial\"}",
+    "qr_data": null,
+    "reference_id": "NOTARY-2024-APP-2024-001",
+    "verified_at": "2026-10-21 15:33:22.222974"
+  },
+  {
+    "id": "0ea49bf1-56d0-4b7f-8403-e5c1845f162c",
+    "document_id": "ec1f0c5f-681b-4892-9537-a341bad5986e",
+    "source_name": "State Judicial Registry",
+    "status": "MISMATCH_DETECTED",
+    "source_response": "{\"status\": \"VERIFIED\", \"source\": \"DigiLocker / State Judicial\"}",
+    "qr_data": null,
+    "reference_id": "NOTARY-2024-APP-2024-002",
+    "verified_at": "2026-10-21 15:33:22.222974"
+  },
+  {
+    "id": "c4ff3e85-5f90-49d8-a6da-fe631a688495",
+    "document_id": "9490e26e-480d-4d9d-b843-569c48cb89c7",
+    "source_name": "State Judicial Registry",
+    "status": "MISMATCH_DETECTED",
+    "source_response": "{\"status\": \"VERIFIED\", \"source\": \"DigiLocker / State Judicial\"}",
+    "qr_data": null,
+    "reference_id": "NOTARY-2024-APP-2024-003",
+    "verified_at": "2026-10-21 15:33:22.222974"
+  },
+  {
+    "id": "24f41143-4d99-4c49-8b6e-030471dbf7ba",
+    "document_id": "b681474d-816c-40a5-a9ed-3e1112c2166d",
+    "source_name": "State Judicial Registry",
+    "status": "VERIFIED",
+    "source_response": "{\"status\": \"VERIFIED\", \"source\": \"DigiLocker / State Judicial\"}",
+    "qr_data": null,
+    "reference_id": "NOTARY-2024-APP-2024-004",
+    "verified_at": "2026-10-21 15:33:22.222974"
+  },
+  {
+    "id": "1955d3f8-ff70-4ff4-b8e6-62717bb528af",
+    "document_id": "6c8c2843-fdf0-4be1-9b5b-0c6a14cdacf8",
+    "source_name": "State Judicial Registry",
+    "status": "VERIFIED",
+    "source_response": "{\"status\": \"VERIFIED\", \"source\": \"DigiLocker / State Judicial\"}",
+    "qr_data": null,
+    "reference_id": "NOTARY-2024-APP-2024-005",
+    "verified_at": "2026-10-21 15:33:22.222974"
+  },
+  {
+    "id": "660620d2-df5f-406f-9f7a-adabd9167132",
+    "document_id": "49c21843-6ff8-4f3d-9ef2-3e3dc3469abe",
+    "source_name": "State Judicial Registry",
+    "status": "MISMATCH_DETECTED",
+    "source_response": "{\"status\": \"VERIFIED\", \"source\": \"DigiLocker / State Judicial\"}",
+    "qr_data": null,
+    "reference_id": "NOTARY-2024-APP-2024-006",
+    "verified_at": "2026-10-21 15:33:22.222974"
+  }
+]

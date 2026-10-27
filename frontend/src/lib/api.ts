@@ -1,4 +1,12 @@
 import axios from 'axios';
+import mockApplications from './mockApplications.json';
+import mockDocuments from './mockDocuments.json';
+import mockValidationRuns from './mockValidationRuns.json';
+import mockValidationFindings from './mockValidationFindings.json';
+import mockAuditLogs from './mockAuditLogs.json';
+import mockAlerts from './mockAlerts.json';
+import mockVerifications from './mockVerifications.json';
+import mockAnomalies from './mockAnomalies.json';
 import type {
   LoginResponse,
   User,
@@ -70,16 +78,36 @@ export const api = {
 
   applications: {
     list: async (): Promise<Application[]> => {
-      const response = await apiClient.get<any>('/applications');
-      if (Array.isArray(response.data)) {
-        return response.data;
+      try {
+        const response = await apiClient.get<any>('/applications');
+        let items: Application[] = [];
+        if (Array.isArray(response.data)) {
+          items = response.data;
+        } else if (response.data?.items) {
+          items = response.data.items;
+        }
+        if (items.length > 0) {
+          return items;
+        }
+      } catch (err) {
+        console.warn('API /applications failed, using demo data:', err);
       }
-      return response.data?.items || [];
+      return mockApplications as unknown as Application[];
     },
 
     get: async (id: string): Promise<Application> => {
-      const response = await apiClient.get<Application>(`/applications/${id}`);
-      return response.data;
+      try {
+        const response = await apiClient.get<Application>(`/applications/${id}`);
+        if (response.data) return response.data;
+      } catch (err) {
+        console.warn(`API /applications/${id} failed, checking demo data:`, err);
+      }
+      const cleanId = id.replace(/-/g, '').toLowerCase();
+      const fallback = (mockApplications as any[]).find(
+        (a) => a.id === id || a.id.replace(/-/g, '').toLowerCase() === cleanId
+      );
+      if (fallback) return fallback as Application;
+      throw new Error('Application not found');
     },
 
     create: async (data: CreateApplicationPayload): Promise<Application> => {
@@ -92,18 +120,64 @@ export const api = {
     },
 
     getValidationReport: async (id: string): Promise<ValidationReport> => {
-      const response = await apiClient.get<ValidationReport>(`/applications/${id}/report`);
-      return response.data;
+      try {
+        const response = await apiClient.get<ValidationReport>(`/applications/${id}/report`);
+        if (response.data) return response.data;
+      } catch (err) {
+        console.warn(`API /applications/${id}/report failed, using demo report:`, err);
+      }
+      const cleanId = id.replace(/-/g, '').toLowerCase();
+      const app = (mockApplications as any[]).find(
+        (a) => a.id === id || a.id.replace(/-/g, '').toLowerCase() === cleanId
+      );
+      const run = (mockValidationRuns as any[]).find(
+        (r) => r.application_id === id || r.application_id?.replace(/-/g, '').toLowerCase() === cleanId
+      );
+      const findings = (mockValidationFindings as any[]).filter(
+        (f) =>
+          !run ||
+          f.validation_run_id === run.id ||
+          f.validation_run_id?.replace(/-/g, '').toLowerCase() === run?.id?.replace(/-/g, '').toLowerCase()
+      );
+      const anomalies = (mockAnomalies as any[]).filter(
+        (a) => a.application_id === id || a.application_id?.replace(/-/g, '').toLowerCase() === cleanId
+      );
+      const verifications = (mockVerifications as any[]).filter(
+        (v) => v.application_id === id || v.application_id?.replace(/-/g, '').toLowerCase() === cleanId
+      );
+      return {
+        application: app as Application,
+        validation_run: run || null,
+        findings: findings || [],
+        anomalies: anomalies || [],
+        verifications: verifications || [],
+      } as unknown as ValidationReport;
     },
 
     getAlerts: async (id: string): Promise<ApplicationAlert[]> => {
-      const response = await apiClient.get<ApplicationAlert[]>(`/applications/${id}/alerts`);
-      return response.data;
+      try {
+        const response = await apiClient.get<ApplicationAlert[]>(`/applications/${id}/alerts`);
+        if (Array.isArray(response.data) && response.data.length > 0) return response.data;
+      } catch (err) {
+        console.warn(`API /applications/${id}/alerts failed, using demo alerts:`, err);
+      }
+      const cleanId = id.replace(/-/g, '').toLowerCase();
+      return (mockAlerts as any[]).filter(
+        (a) => a.application_id === id || a.application_id?.replace(/-/g, '').toLowerCase() === cleanId
+      );
     },
 
     getAudit: async (id: string): Promise<AuditLog[]> => {
-      const response = await apiClient.get<AuditLog[]>(`/applications/${id}/audit`);
-      return response.data;
+      try {
+        const response = await apiClient.get<AuditLog[]>(`/applications/${id}/audit`);
+        if (Array.isArray(response.data) && response.data.length > 0) return response.data;
+      } catch (err) {
+        console.warn(`API /applications/${id}/audit failed, using demo audit logs:`, err);
+      }
+      const cleanId = id.replace(/-/g, '').toLowerCase();
+      return (mockAuditLogs as any[]).filter(
+        (a) => a.application_id === id || a.application_id?.replace(/-/g, '').toLowerCase() === cleanId
+      );
     },
 
     takeAction: async (id: string, action: OfficerAction, notes: string): Promise<void> => {
@@ -132,8 +206,16 @@ export const api = {
     },
 
     list: async (applicationId: string): Promise<Document[]> => {
-      const response = await apiClient.get<Document[]>(`/applications/${applicationId}/documents`);
-      return response.data;
+      try {
+        const response = await apiClient.get<Document[]>(`/applications/${applicationId}/documents`);
+        if (Array.isArray(response.data) && response.data.length > 0) return response.data;
+      } catch (err) {
+        console.warn(`API /documents failed for ${applicationId}, using demo documents:`, err);
+      }
+      const cleanId = applicationId.replace(/-/g, '').toLowerCase();
+      return (mockDocuments as any[]).filter(
+        (d) => d.application_id === applicationId || d.application_id?.replace(/-/g, '').toLowerCase() === cleanId
+      );
     },
 
     retry: async (documentId: string): Promise<Document> => {

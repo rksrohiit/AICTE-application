@@ -1,0 +1,98 @@
+[
+  {
+    "id": "93a807e7-bef3-4057-924f-10eb989877df",
+    "application_id": "ba7b8f08-cb89-43df-b839-0beaddbe0743",
+    "started_at": "2026-10-21 14:33:22.222974",
+    "completed_at": "2026-10-21 14:35:22.222974",
+    "overall_score": 95,
+    "status": "COMPLETE",
+    "rules_version": "2024.1.0",
+    "findings_count_high": 0,
+    "findings_count_medium": 0,
+    "findings_count_low": 1
+  },
+  {
+    "id": "0b2ecfd8-2a19-4786-a26b-6dcdec5339a7",
+    "application_id": "a228267e-9f7e-4efb-92e5-91e77e57e098",
+    "started_at": "2026-10-21 14:33:22.222974",
+    "completed_at": "2026-10-21 14:35:22.222974",
+    "overall_score": 68,
+    "status": "COMPLETE",
+    "rules_version": "2024.1.0",
+    "findings_count_high": 1,
+    "findings_count_medium": 1,
+    "findings_count_low": 1
+  },
+  {
+    "id": "11073c99-4d45-4e95-b330-18e5be81d8c7",
+    "application_id": "70c58c66-f29b-4f34-87bc-a6b24dcc736c",
+    "started_at": "2026-10-21 14:33:22.222974",
+    "completed_at": "2026-10-21 14:35:22.222974",
+    "overall_score": 52,
+    "status": "COMPLETE",
+    "rules_version": "2024.1.0",
+    "findings_count_high": 2,
+    "findings_count_medium": 1,
+    "findings_count_low": 1
+  },
+  {
+    "id": "15f002c7-41de-4ac0-9b66-db1d6d4d021a",
+    "application_id": "31d2a723-2d5c-4931-bc13-437c476e4a66",
+    "started_at": "2026-10-21 14:33:22.222974",
+    "completed_at": "2026-10-21 14:35:22.222974",
+    "overall_score": 82,
+    "status": "COMPLETE",
+    "rules_version": "2024.1.0",
+    "findings_count_high": 1,
+    "findings_count_medium": 1,
+    "findings_count_low": 1
+  },
+  {
+    "id": "70827f06-abdd-482f-9d29-271401b265a7",
+    "application_id": "5e362fdc-f8c2-41f4-bfde-ab6465718eaa",
+    "started_at": "2026-10-21 14:33:22.222974",
+    "completed_at": "2026-10-21 14:35:22.222974",
+    "overall_score": 88,
+    "status": "COMPLETE",
+    "rules_version": "2024.1.0",
+    "findings_count_high": 0,
+    "findings_count_medium": 1,
+    "findings_count_low": 1
+  },
+  {
+    "id": "1d9db35e-3c36-4503-af28-5b9e5d2506c0",
+    "application_id": "37cbc1f6-5517-49ba-972d-1e58fa929feb",
+    "started_at": "2026-10-21 14:33:22.222974",
+    "completed_at": "2026-10-21 14:35:22.222974",
+    "overall_score": 45,
+    "status": "COMPLETE",
+    "rules_version": "2024.1.0",
+    "findings_count_high": 2,
+    "findings_count_medium": 1,
+    "findings_count_low": 1
+  },
+  {
+    "id": "aca766a7-89c0-415d-afea-df215c06ab97",
+    "application_id": "60fd8859-a406-4090-878e-238eb03c3b71",
+    "started_at": "2026-10-26 16:09:08.128630",
+    "completed_at": "2026-10-26 16:09:08.170852",
+    "overall_score": 0,
+    "status": "COMPLETE",
+    "rules_version": "1.0.0",
+    "findings_count_high": 20,
+    "findings_count_medium": 6,
+    "findings_count_low": 1
+  },
+  {
+    "id": "0c556ef0-326f-4653-8da1-70ff02d578a2",
+    "application_id": "60fd8859-a406-4090-878e-238eb03c3b71",
+    "started_at": "2026-10-26 16:12:23.400064",
+    "completed_at": "2026-10-26 16:12:23.429949",
+    "overall_score": 0,
+    "status": "COMPLETE",
+    "rules_version": "1.0.0",
+    "findings_count_high": 20,
+    "findings_count_medium": 6,
+    "findings_count_low": 1
+  }
+]

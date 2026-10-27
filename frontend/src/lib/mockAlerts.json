@@ -1,0 +1,12 @@
+[
+  {
+    "id": "bebed617-b872-47d6-9673-e2b4de25dbbb",
+    "application_id": "60fd8859-a406-4090-878e-238eb03c3b71",
+    "alert_type": "RECTIFICATION_REQUESTED",
+    "severity": "HIGH",
+    "message": "Realtime rectification test",
+    "is_resolved": 0,
+    "created_at": "2026-10-26 16:12:27.523506",
+    "resolved_at": null
+  }
+]

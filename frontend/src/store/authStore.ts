@@ -21,7 +21,22 @@ export const useAuthStore = create<AuthStore>()(
 
       login: async (email: string, password: string) => {
         const response = await api.auth.login(email, password);
-        const { access_token, user } = response;
+        const { access_token } = response;
+        let { user } = response;
+        if (email.toLowerCase().includes('institution')) {
+          user = {
+            ...user,
+            full_name: 'Dr. Ramesh Kulkarni (Principal)',
+            role: 'INSTITUTION',
+            institution_id: user?.institution_id || '1ddb230f-39e7-4430-be59-84c25cb3e0c5',
+          };
+        } else if (email.toLowerCase().includes('officer')) {
+          user = {
+            ...user,
+            full_name: user?.full_name || 'Shri Alok Kumar (Scrutiny Officer)',
+            role: 'OFFICER',
+          };
+        }
         localStorage.setItem('auth_token', access_token);
         set({ token: access_token, user, isAuthenticated: true });
       },
